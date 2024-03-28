@@ -5,6 +5,8 @@ import bodyParser from "body-parser";
 import { buildModuleTree } from "./codeParse/parsePythonModule";
 import { CheckLogin, CreateUser, Login } from "./database/loginUtils";
 import cookieParser from "cookie-parser";
+import { parsePackage } from "./codeParse/parsePythonPackage";
+import { Database } from "./common/objectStorage";
 
 const app = express();
 const port = 8001;
@@ -24,11 +26,16 @@ app.post("/api/getAll", (req, res) => {
     }
 });
 
-app.post("/api/parseModule", (req, res) => {
+app.post("/api/parsePackage", (req, res) => {
     // console.log(req)
     let folderPath = req.body.folderPath;
-    let root = buildModuleTree(folderPath);
-    res.send(JSON.stringify(root.toJSON()));
+    let root = parsePackage(folderPath);
+    res.send("Starting to parse package at" + folderPath + " id: " + root);
+});
+
+app.post("/api/getPackageStat", (req, res) => {
+    let id = req.body.id;
+    res.send("The requested package stat: "+ Database.getPackage(id).status);
 });
 
 app.post("/api/test/createUser", async (req, res, next) => {
