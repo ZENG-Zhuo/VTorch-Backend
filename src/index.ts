@@ -80,6 +80,11 @@ app.post("/api/testLogin", async (req, res, next) => {
     }
 });
 
+app.post("/api/save", async (req, res) => {
+    Database.save();
+    res.send("Saved!");
+});
+
 app.get("/", (req, res) => {
     res.send("Hello!");
 });
