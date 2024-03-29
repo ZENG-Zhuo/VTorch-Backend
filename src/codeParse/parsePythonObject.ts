@@ -166,6 +166,23 @@ export function extractClassesAndFunctions(
     const functions: FuncInfo[] = [];
 
     createVisitor({
+        visitImport_stmt: (importStmt) => {
+            console.log("\nImport stmt context:");
+            console.log(
+                "import_name:",
+                importStmt
+                    .import_name()
+                    ?.dotted_as_names()
+                    .dotted_as_name(0)
+                    .dotted_name()
+                    .NAME(0).text
+            );
+            console.log(
+                "import_from:",
+                importStmt.import_from()?.dotted_name()?.NAME(0).text
+            );
+            // console.log("name:", importStmt.import_name()?.dotted_as_names());
+        },
         visitClassdef: (classDef) => {
             classes.push(parseClassDef(classDef));
         },

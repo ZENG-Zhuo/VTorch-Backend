@@ -18,13 +18,18 @@ export function parsePackage(filePath: string): PackageId {
             packageName,
             version
         );
-        pythonPackage.status = 'parsing';
+        pythonPackage.status = "parsing";
         if (isFile) {
-            pythonPackage.root = parsePythonFile(filePath);
+            parsePythonFile(filePath).then((root) => {
+                pythonPackage.root = root;
+                pythonPackage.status = "ready";
+            });
         } else {
-            pythonPackage.root = buildModuleTree(filePath);
+            buildModuleTree(filePath).then((root) => {
+                pythonPackage.root = root;
+                pythonPackage.status = "ready";
+            });
         }
-        pythonPackage.status = 'ready';
         const uuid = randomUUID();
         Database.setPackage(uuid, pythonPackage);
         return uuid;
