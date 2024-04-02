@@ -25,14 +25,16 @@ export async function parsePythonFile(filePath: string): Promise<NodeId> {
             if (err) {
                 console.error(err.message);
             } else {
-                let classesFunctions = extractClassesAndFunctions(pythonCode);
+                let classesFunctionsImports =
+                    extractClassesAndFunctions(pythonCode);
                 Database.setNode(
                     uuid,
                     new FileModuleNode(
                         path,
                         name,
-                        classesFunctions[0],
-                        classesFunctions[1]
+                        classesFunctionsImports[0],
+                        classesFunctionsImports[1],
+                        classesFunctionsImports[2]
                     )
                 );
             }
@@ -60,12 +62,17 @@ export async function buildModuleTree(moduleFolder: string): Promise<NodeId> {
             } else if (
                 lstatSync(fileName).isFile() &&
                 fileName.endsWith(".py") &&
-                (path.basename(fileName).includes("__init__") ||
-                    !path.basename(fileName).startsWith("_"))
+                !path.basename(fileName).startsWith("_")
             ) {
                 // If it's a Python module, add it as a child node
                 const child = await parsePythonFile(fileName);
                 root.children.push(child);
+            } else if (path.basename(fileName).includes("__init__")) {
+                const classesFunctionsAndImports =
+                    extractClassesAndFunctions(fileName);
+                root.classes = classesFunctionsAndImports[0];
+                root.functions = classesFunctionsAndImports[1];
+                root.imports = classesFunctionsAndImports[2];
             }
         }
         let uuid = randomUUID();
