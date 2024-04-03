@@ -164,19 +164,14 @@ export function extractAllObjects(code: string): string[] | undefined {
     }
 }
 
-function parseDottedName(dottedName: Dotted_nameContext): string[] {
-    return dottedName.NAME().map((n) => n.text);
+function parseDottedName(dottedName?: Dotted_nameContext): string[] {
+    return dottedName ? dottedName.NAME().map((n) => n.text) : [];
 }
 
 function parseImportStmt(
     importStmt: Import_stmtContext
 ): ImportInfo[] | undefined {
     if (importStmt.import_name()) {
-        console.log("Parsed import name");
-        console.log(
-            importStmt.import_name()?.dotted_as_names().dotted_as_name(0).NAME()
-                ?.text
-        );
         return importStmt
             .import_name()
             ?.dotted_as_names()
@@ -195,41 +190,6 @@ function parseImportStmt(
             );
     } else if (importStmt.import_from()) {
         const dottedName = importStmt.import_from()?.dotted_name();
-        console.log(
-            "Name: ",
-            dottedName?.NAME().map((n) => n.text)
-        );
-        if (dottedName?.NAME() == undefined) {
-            throw "no import source or import more than one source";
-            return;
-        }
-        console.log("Prased import from");
-        console.log(
-            "From dot: ",
-            importStmt
-                .import_from()
-                ?.DOT()
-                .map((n) => n.text)
-            // ?.NAME()
-            // .map((name) => name.text)
-        );
-        console.log(
-            "From ellipsis: ",
-            importStmt
-                .import_from()
-                ?.ELLIPSIS()
-                .map((n) => n.text)
-            // ?.NAME()
-            // .map((name) => name.text)
-        );
-        console.log(
-            "import as name: ",
-            importStmt
-                .import_from()
-                ?.import_as_names()
-                ?.import_as_name()
-                .flatMap((item) => item.NAME().map((name) => name.text))
-        );
         const DOTS = importStmt.import_from()?.DOT();
         const ELLIPSISES = importStmt.import_from()?.ELLIPSIS();
         let dotCount = 0;
@@ -268,7 +228,6 @@ export function extractClassesAndFunctions(
         visitImport_stmt: (importStmt) => {
             const parsedImports = parseImportStmt(importStmt);
             if (parsedImports) imports = imports.concat(parsedImports);
-            console.log(imports.map((i) => i.getSource().getSource()));
         },
         visitClassdef: (classDef) => {
             classes.push(parseClassDef(classDef));

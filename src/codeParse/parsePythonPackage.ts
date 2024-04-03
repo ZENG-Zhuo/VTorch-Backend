@@ -20,12 +20,12 @@ export function parsePackage(filePath: string): PackageId {
         );
         pythonPackage.status = "parsing";
         if (isFile) {
-            parsePythonFile(filePath).then((root) => {
+            parsePythonFile(filePath, []).then((root) => {
                 pythonPackage.root = root;
                 pythonPackage.status = "ready";
             });
         } else {
-            buildModuleTree(filePath).then((root) => {
+            buildModuleTree(filePath, []).then((root) => {
                 pythonPackage.root = root;
                 pythonPackage.status = "ready";
             });

@@ -50,3 +50,10 @@ codeParseRoute.post("/load", async (req, res) => {
     Database.load();
     res.send("Loaded!");
 });
+
+
+codeParseRoute.post("/getSubModuleInfo", async(req, res)=> {
+    let id = req.body.id; // packacge id
+    let relativePath = req.body.relativePath;
+    res.send(Database.getPackage(id).getSubModule(relativePath));
+})
