@@ -18,6 +18,7 @@ import {
     ImportInfo,
     RelativePathInfo,
 } from "../common/pythonObjectTypes";
+import { TerminalNode } from "antlr4ts/tree/TerminalNode";
 
 function parseTypeHint(typeContext?: TestContext): TypeInfo | undefined {
     if (typeContext == undefined) return undefined;
@@ -168,6 +169,16 @@ function parseDottedName(dottedName?: Dotted_nameContext): string[] {
     return dottedName ? dottedName.NAME().map((n) => n.text) : [];
 }
 
+function parseName(name: TerminalNode[]): string | [string, string] {
+    if (name.length == 1) {
+        return name[0].text;
+    } else if (name.length == 2) {
+        return [name[0].text, name[1].text];
+    }
+
+    throw "Invalid Name: " + name.map((n) => n.text);
+}
+
 function parseImportStmt(
     importStmt: Import_stmtContext
 ): ImportInfo[] | undefined {
@@ -189,6 +200,16 @@ function parseImportStmt(
                     )
             );
     } else if (importStmt.import_from()) {
+        console.log("Entering import_from");
+        console.log(
+            "Import as name text: ",
+            importStmt
+                .import_from()
+                ?.import_as_names()
+                ?.import_as_name()
+                .map((i) => parseName(i.NAME()))
+        );
+        console.log("star", importStmt.import_from()?.STAR()?.text);
         const dottedName = importStmt.import_from()?.dotted_name();
         const DOTS = importStmt.import_from()?.DOT();
         const ELLIPSISES = importStmt.import_from()?.ELLIPSIS();
@@ -209,7 +230,7 @@ function parseImportStmt(
                     .import_from()
                     ?.import_as_names()
                     ?.import_as_name()
-                    .flatMap((item) => item.NAME().map((name) => name.text))
+                    .map((i) => parseName(i.NAME()))
             ),
         ];
     }

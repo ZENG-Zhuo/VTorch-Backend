@@ -39,7 +39,10 @@ function parseImportInfo(
             level != 0
                 ? relativePath.slice(0, -level).concat(source.source)
                 : relativePath.concat(source.source); // this need to be updated to find
-        const importSourceNodeId = pack.getSubModule(sourcePath);
+        const importSourceNodeId = pack.getSubModule(
+            sourcePath,
+            source.fromFile
+        );
         if (importSourceNodeId) {
             // ignoring __all__ for now!
             const importSourceNode = Database.getNode(importSourceNodeId);
@@ -48,43 +51,92 @@ function parseImportInfo(
                 importSourceNode.relativePath,
                 "============="
             );
-            if (i.importees) {
+            const importees = i.importees;
+            if (importees) {
                 if (!importSourceNode.parsedImport)
                     parseImportInfo(pack, importSourceNode);
-                if (i.importees == "*") {
+                if (importees == "*") {
                     throw "* import not implemented yet";
                 }
-                const importClasses = importSourceNode.classes.filter((c) =>
-                    i.importees?.includes(c.name)
-                );
-                const importFunctions = importSourceNode.functions.filter((f) =>
-                    i.importees?.includes(f.name)
-                );
-                importClasses.map((c) =>
-                    node.importedClasses.set(c.name, importSourceNodeId)
-                );
-                importFunctions.map((f) =>
-                    node.importedFunctions.set(f.name, importSourceNodeId)
-                );
-                i.importees.map((i) => {
-                    const ic = importSourceNode.importedClasses.get(i);
-                    if (ic) {
-                        node.importedClasses.set(i, ic);
+                importSourceNode.classes.map((classInfo) => {
+                    let alias: string = "";
+                    let className: string = "";
+                    const index = importees.findIndex((importee) => {
+                        if (typeof importee === "string") {
+                            alias = importee;
+                            className = importee;
+                        } else {
+                            className = importee[0];
+                            alias = importee[1];
+                        }
+                        return (className === classInfo.name);
+                    });
+                    if (index >= 0) {
+                        node.importedClasses.set(alias, [
+                            className,
+                            importSourceNodeId,
+                        ]);
+                    }
+                });
+                importSourceNode.functions.map((funcInfo) => {
+                    let alias: string = "";
+                    let funcName: string = "";
+                    const index = importees.findIndex((importee) => {
+                        if (typeof importee === "string") {
+                            alias = importee;
+                            funcName = importee;
+                        } else {
+                            funcName = importee[0];
+                            alias = importee[1];
+                        }
+                        return (funcName === funcInfo.name);
+                    });
+                    if (index >= 0) {
+                        console.log(
+                            "settting func:",
+                            alias,
+                            funcName,
+                        );
+                        node.importedFunctions.set(alias, [
+                            funcName,
+                            importSourceNodeId,
+                        ]);
+                    }
+                });
+
+                importees.map((importee) => {
+                    let alias = "";
+                    let name = "";
+                    if (typeof importee === "string") {
+                        alias = name = importee;
                     } else {
-                        const ifunc = importSourceNode.importedFunctions.get(i);
+                        name = importee[0];
+                        alias = importee[1];
+                    }
+                    // find import recursively from importSourceNode
+                    const ic = importSourceNode.importedClasses.get(name);
+                    if (ic) {
+                        node.importedClasses.set(alias, ic);
+                    } else {
+                        const ifunc =
+                            importSourceNode.importedFunctions.get(name);
                         if (ifunc) {
-                            node.importedFunctions.set(i, ifunc);
+                            console.log("settting func:", alias, ifunc);
+                            node.importedFunctions.set(alias, ifunc);
                         }
                     }
                 });
             } else {
                 if (i.alias) {
-                    node.importedModules.set(i.alias, importSourceNodeId);
-                } else {
-                    node.importedModules.set(
+                    node.importedModules.set(i.alias, [
                         importSourceNode.name,
-                        importSourceNodeId
-                    );
+                        importSourceNodeId,
+                    ]);
+                } else {
+                    node.importedModules.set(importSourceNode.name, [
+                        importSourceNode.name,
+                        importSourceNodeId,
+                    ]);
                 }
             }
         } else {

@@ -55,14 +55,14 @@ codeParseRoute.post("/load", async (req, res) => {
 codeParseRoute.post("/getSubModuleInfo", async(req, res)=> {
     let id = req.body.id; // package id
     let relativePath = req.body.relativePath;
-    res.send(Database.getPackage(id).getSubModule(relativePath));
+    res.send(Database.getPackage(id).getSubModule(relativePath, false));
 })
 
 codeParseRoute.post("/parseImport", async(req, res)=> {
     let id = req.body.id; // package id
     let relativePath = req.body.relativePath;
     const pack = Database.getPackage(id);
-    const module = pack.getSubModule(relativePath);
+    const module = pack.getSubModule(relativePath, true);
     if (module){
         parseImportInfoRecursively(pack, module);
         res.send(Database.getNode(module).toJSON());
