@@ -35,14 +35,22 @@ function parseImportInfo(
         if (level >= relativePath.length) {
             throw "out of package relative import!";
         }
+        let importSourceNodeId = undefined;
+        const rootNode = pack.root ? Database.getNode(pack.root) : undefined;
+        if (!rootNode) throw "pack uninitilized";
         const sourcePath =
             level != 0
                 ? relativePath.slice(0, -level).concat(source.source)
                 : relativePath.concat(source.source); // this need to be updated to find
-        const importSourceNodeId = pack.getSubModule(
-            sourcePath,
-            source.fromFile
-        );
+
+        importSourceNodeId = pack.getSubModule(sourcePath, source.fromFile);
+        if (!importSourceNodeId) {
+            importSourceNodeId = pack.getSubModule(
+                source.source,
+                source.fromFile
+            ); // eg. import torch.**/ import torch
+        }
+
         if (importSourceNodeId) {
             // ignoring __all__ for now!
             const importSourceNode = Database.getNode(importSourceNodeId);
@@ -56,7 +64,44 @@ function parseImportInfo(
                 if (!importSourceNode.parsedImport)
                     parseImportInfo(pack, importSourceNode);
                 if (importees == "*") {
-                    throw "* import not implemented yet";
+                    const __all__ = importSourceNode.__all__;
+                    let checkValid = (name: string) => {
+                        return true;
+                    };
+                    if (__all__) {
+                        checkValid = (name: string) => {
+                            return __all__.includes(name);
+                        };
+                    }
+                    importSourceNode.classes.map((classInfo) => {
+                        if (checkValid(classInfo.name))
+                            node.importedClasses.set(classInfo.name, [
+                                classInfo.name,
+                                importSourceNodeId,
+                            ]);
+                    });
+                    importSourceNode.functions.map((funcInfo) => {
+                        if (checkValid(funcInfo.name))
+                            node.importedFunctions.set(funcInfo.name, [
+                                funcInfo.name,
+                                importSourceNodeId,
+                            ]);
+                    });
+                    importSourceNode.importedClasses.forEach((value, alias) => {
+                        if (checkValid(alias))
+                            node.importedClasses.set(alias, value);
+                    });
+                    importSourceNode.importedFunctions.forEach(
+                        (value, alias) => {
+                            if (checkValid(alias))
+                                node.importedFunctions.set(alias, value);
+                        }
+                    );
+                    importSourceNode.importedModules.forEach((value, alias) => {
+                        if (checkValid(alias))
+                            node.importedModules.set(alias, value);
+                    });
+                    return;
                 }
                 importSourceNode.classes.map((classInfo) => {
                     let alias: string = "";
@@ -69,7 +114,7 @@ function parseImportInfo(
                             className = importee[0];
                             alias = importee[1];
                         }
-                        return (className === classInfo.name);
+                        return className === classInfo.name;
                     });
                     if (index >= 0) {
                         node.importedClasses.set(alias, [
@@ -89,14 +134,10 @@ function parseImportInfo(
                             funcName = importee[0];
                             alias = importee[1];
                         }
-                        return (funcName === funcInfo.name);
+                        return funcName === funcInfo.name;
                     });
                     if (index >= 0) {
-                        console.log(
-                            "settting func:",
-                            alias,
-                            funcName,
-                        );
+                        console.log("settting func:", alias, funcName);
                         node.importedFunctions.set(alias, [
                             funcName,
                             importSourceNodeId,
@@ -116,13 +157,27 @@ function parseImportInfo(
                     // find import recursively from importSourceNode
                     const ic = importSourceNode.importedClasses.get(name);
                     if (ic) {
+                        // check if it is a class in importSourceNode
                         node.importedClasses.set(alias, ic);
                     } else {
                         const ifunc =
                             importSourceNode.importedFunctions.get(name);
                         if (ifunc) {
+                            // check if it is a function in importSourceNode
                             console.log("settting func:", alias, ifunc);
                             node.importedFunctions.set(alias, ifunc);
+                        } else {
+                            const moduleId = importSourceNode.getSubModule(
+                                [importSourceNode.name, name],
+                                source.fromFile
+                            );
+                            if (moduleId) {
+                                // check if it is a module in importSourceNode
+                                node.importedModules.set(alias, [
+                                    name,
+                                    moduleId,
+                                ]);
+                            }
                         }
                     }
                 });
