@@ -1,4 +1,3 @@
-import { statSync } from "fs";
 import {
     FileModuleNode,
     FolderModuleNode,
@@ -6,9 +5,19 @@ import {
     getBasename,
 } from "../common/pythonFileTypes";
 import { Package, PackageId } from "../common/pythonPackageType";
-import { Database } from "../common/objectStorage";
+import { Database, nodeFromJSON } from "../common/objectStorage";
 import { randomUUID } from "crypto";
 import { buildModuleTree, parsePythonFile } from "./parsePythonModule";
+import {
+    existsSync,
+    mkdirSync,
+    readFileSync,
+    statSync,
+    writeFileSync,
+} from "fs";
+import { globSync } from "glob";
+import path, { basename } from "path";
+
 export function parseImportInfoRecursively(pack: Package, nodeId: NodeId) {
     let node = Database.getNode(nodeId);
     parseImportInfo(pack, node);
@@ -238,4 +247,65 @@ export function parsePackage(filePath: string): PackageId {
     } catch (error) {
         throw "Invaild file path: " + filePath;
     }
+}
+
+type Node = FileModuleNode | FolderModuleNode;
+
+export function saveDatabase() {
+    const packagesPath = path.join(storagePath, "packages");
+    if (!existsSync(packagesPath)) mkdirSync(packagesPath);
+    for (const entry of Database.packages.entries()) {
+        writeFileSync(
+            path.join(packagesPath, entry[0]),
+            JSON.stringify(entry[1].toJSON())
+        );
+    }
+
+    const nodesPath = path.join(storagePath, "nodes");
+    if (!existsSync(nodesPath)) mkdirSync(nodesPath);
+    for (const entry of Database.nodes.entries()) {
+        writeFileSync(
+            path.join(nodesPath, entry[0]),
+            JSON.stringify(entry[1].toJSON())
+        );
+    }
+}
+const storagePath = "/home/zeng-zhuo/FYP/storage";
+export function loadPackages(): Map<PackageId, Package> {
+    let packages = new Map<PackageId, Package>();
+    const packagesPath = path.join(storagePath, "packages");
+    if (statSync(packagesPath).isDirectory()) {
+        let files = globSync(path.join(packagesPath, "*"));
+        for (const fileName of files) {
+            let content = readFileSync(fileName, "utf8");
+            let pack = Package.fromJSON(JSON.parse(content));
+            packages.set(basename(fileName), pack);
+        }
+    }
+    return packages;
+}
+
+export function loadNodes(): Map<NodeId, Node> {
+    let nodes = new Map<NodeId, Node>();
+    const nodesPath = path.join(storagePath, "nodes");
+
+    if (statSync(nodesPath).isDirectory()) {
+        let files = globSync(path.join(nodesPath, "*"));
+
+        for (const fileName of files) {
+            const content = readFileSync(fileName, "utf8");
+            const json = JSON.parse(content);
+            const node = nodeFromJSON(json);
+            nodes.set(basename(fileName), node);
+        }
+    }
+
+    return nodes;
+}
+
+export function loadDataBase() {
+    Database.packages.clear();
+    Database.nodes.clear();
+    Database.packages = loadPackages();
+    Database.nodes = loadNodes();
 }

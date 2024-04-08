@@ -2,8 +2,10 @@ import { Router } from "express";
 import { readFileSync } from "fs";
 import { extractAllObjects } from "../codeParse/parsePythonObject";
 import {
+    loadDataBase,
     parseImportInfoRecursively,
     parsePackage,
+    saveDatabase,
 } from "../codeParse/parsePythonPackage";
 import { Database } from "../common/objectStorage";
 import { Package } from "../common/pythonPackageType";
@@ -46,12 +48,12 @@ codeParseRoute.post("/getNode", (req, res) => {
 });
 
 codeParseRoute.post("/save", async (req, res) => {
-    Database.save();
+    saveDatabase();
     res.send("Saved!");
 });
 
 codeParseRoute.post("/load", async (req, res) => {
-    Database.load();
+    loadDataBase();
     res.send("Loaded!");
 });
 
@@ -82,3 +84,8 @@ codeParseRoute.post("/testJSON", async (req, res) => {
     console.log(Database.packages);
     res.send("View result in console");
 });
+
+codeParseRoute.post("/getDatabase", async (req, res)=>{
+    const jsonStr = JSON.stringify(Database.toJSON());
+    res.send(jsonStr);
+})
