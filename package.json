@@ -23,9 +23,11 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
+    "@types/cors": "^2.8.17",
     "@types/mongoose": "^5.11.97",
     "body-parser": "^1.20.2",
     "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
     "express-session": "^1.18.0",
     "fs": "^0.0.1-security",
     "glob": "^10.3.10",

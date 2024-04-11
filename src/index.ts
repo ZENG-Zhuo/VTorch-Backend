@@ -2,9 +2,11 @@ import express from "express";
 import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import { routes } from "./routes/routes";
+import cors from "cors";
 
 const app = express();
 const port = 8001;
+app.use(cors());
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(cookieParser());
 app.use("/api", routes);
