@@ -12,7 +12,12 @@ loginRoute.post("/createUser", async (req, res, next) => {
             req.body.email,
             req.body.name
         );
-        res.send(answer);
+        if (answer === "Success" ){
+            res.send(answer);
+        }else{
+            res.status(400).send(answer);
+
+        }
     } catch (error) {
         return next(error);
     }
