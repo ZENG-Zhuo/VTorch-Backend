@@ -26,7 +26,6 @@ codeParseRoute.post("/getAll", (req, res) => {
 });
 
 codeParseRoute.post("/parsePackage", (req, res) => {
-    // console.log(req)
     let folderPath = req.body.folderPath;
     let root = parsePackage(folderPath);
     res.send("Starting to parse package at" + folderPath + " id: " + root);

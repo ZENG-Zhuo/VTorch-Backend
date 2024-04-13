@@ -21,7 +21,7 @@ export async function parsePythonFile(
 ): Promise<NodeId> {
     totalJobs += 1;
     console.log("new job parsing:", filePath);
-    if (!filePath.endsWith(".py")) {
+    if (!(filePath.endsWith(".py") || filePath.endsWith(".pyi"))) {
         throw new Error(`FileModule ${filePath} does not end with .py`);
     }
     let name = getBasename(filePath);
@@ -41,9 +41,7 @@ export async function parsePythonFile(
                     new FileModuleNode(
                         uuid,
                         filePath,
-                        baseRelativePath.concat([
-                            path.basename(filePath, ".py"),
-                        ]),
+                        baseRelativePath.concat([getBasename(filePath)]),
                         name,
                         classesFunctionsImports[0],
                         classesFunctionsImports[1],
@@ -83,7 +81,10 @@ export async function buildModuleTree(
         for (const fileName of fileNames) {
             if (
                 lstatSync(fileName).isDirectory() &&
-                !path.basename(fileName).startsWith("_")
+                !(
+                    path.basename(fileName).startsWith("_") &&
+                    getBasename(fileName) !== "_C"
+                )
             ) {
                 // If it's a subdirectory, recursively call the function
                 const child = await buildModuleTree(fileName, relativePath);
@@ -96,11 +97,6 @@ export async function buildModuleTree(
                         let classesFunctionsImports =
                             extractClassesAndFunctions(pythonCode);
                         const __all__ = extractAllObjects(pythonCode);
-                        console.log(
-                            "Parsing __init__.py",
-                            fileName,
-                            classesFunctionsImports
-                        );
                         root.classes = classesFunctionsImports[0];
                         root.functions = classesFunctionsImports[1];
                         root.imports = classesFunctionsImports[2];
@@ -109,7 +105,7 @@ export async function buildModuleTree(
                 });
             } else if (
                 lstatSync(fileName).isFile() &&
-                fileName.endsWith(".py")
+                (fileName.endsWith(".py") || fileName.endsWith(".pyi"))
                 // !path.basename(fileName).startsWith("_")
             ) {
                 // If it's a Python module, add it as a child node
@@ -121,7 +117,6 @@ export async function buildModuleTree(
         return uuid;
     } else {
         console.log("Basename: ", path.basename(moduleFolder));
-        // moduleFolder should be a directory, so this line should never be called
         return parsePythonFile(moduleFolder, relativePath);
     }
 }

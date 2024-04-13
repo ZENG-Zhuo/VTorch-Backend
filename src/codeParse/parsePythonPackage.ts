@@ -63,11 +63,6 @@ function parseImportInfo(
         if (importSourceNodeId) {
             // ignoring __all__ for now!
             const importSourceNode = Database.getNode(importSourceNodeId);
-            console.log(
-                "============Parsing Import for Node: ",
-                importSourceNode.relativePath,
-                "============="
-            );
             const importees = i.importees;
             if (importees) {
                 if (!importSourceNode.parsedImport)

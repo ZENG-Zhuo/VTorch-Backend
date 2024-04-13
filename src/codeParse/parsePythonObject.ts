@@ -200,16 +200,6 @@ function parseImportStmt(
                     )
             );
     } else if (importStmt.import_from()) {
-        console.log("Entering import_from");
-        console.log(
-            "Import as name text: ",
-            importStmt
-                .import_from()
-                ?.import_as_names()
-                ?.import_as_name()
-                .map((i) => parseName(i.NAME()))
-        );
-        console.log("star", importStmt.import_from()?.STAR()?.text);
         const star = importStmt.import_from()?.STAR()?.text !== undefined;
         const dottedName = importStmt.import_from()?.dotted_name();
         const DOTS = importStmt.import_from()?.DOT();
