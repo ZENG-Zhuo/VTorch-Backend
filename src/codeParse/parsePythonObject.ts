@@ -123,9 +123,11 @@ function parseParamerters(
 }
 
 function parseFuncDef(funcContext: FuncdefContext): FuncInfo {
+    const returnType = funcContext.test();
     return new FuncInfo(
         funcContext.NAME().text,
-        parseParamerters(funcContext.parameters())
+        parseParamerters(funcContext.parameters()),
+        parseTypeHint(returnType)
     );
 }
 
