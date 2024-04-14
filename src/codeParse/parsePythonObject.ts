@@ -112,6 +112,8 @@ function parseParamerters(
     }
 
     let resultLen = result.length;
+    if (argslist.POWER()) resultLen--;
+    if (argslist.STAR()) resultLen--;
     const initialValues = argslist.test();
     let initialValueLen = initialValues.length;
     for (let i = 0; i < initialValueLen; i++) {
