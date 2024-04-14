@@ -25,7 +25,8 @@ function parseTypeHint(typeContext?: TestContext): TypeInfo | undefined {
     return parseTypeString(typeContext.text);
 }
 
-function parseTypeString(typeString: string): TypeInfo {
+//export for testing only
+export function parseTypeString(typeString: string): TypeInfo {
     const trimmedTypeString = typeString.trim();
     if (trimmedTypeString === "...") return new TypeInfo("Variadic");
     // const typeInfoRegex = /^(\w+)(\[(.+)\])?(\.{3})?$/;
