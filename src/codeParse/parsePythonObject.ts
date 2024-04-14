@@ -112,8 +112,12 @@ function parseParamerters(
     }
 
     let resultLen = result.length;
-    if (argslist.POWER()) resultLen--;
-    if (argslist.STAR()) resultLen--;
+    if (argslist.POWER()) {
+        resultLen -= 1;
+    }
+    if (argslist.STAR()) {
+        resultLen -= 1;
+    }
     const initialValues = argslist.test();
     let initialValueLen = initialValues.length;
     for (let i = 0; i < initialValueLen; i++) {
@@ -237,7 +241,7 @@ function parseImportStmt(
 export function extractClassesAndFunctions(
     code: string
 ): [ClassInfo[], FuncInfo[], ImportInfo[]] {
-    const tree = parse(code);
+    const tree = parse(code.replace(/(\s?([\/\*])\s?,)+/g, ""));
     const classes: ClassInfo[] = [];
     const functions: FuncInfo[] = [];
     let imports: ImportInfo[] = [];
