@@ -354,9 +354,9 @@ export function convertTo(textString: string, targetType: PythonType): {succ: bo
         }
         case BOOLTYPE:
             if(str == "True" || str == "true")
-                return {succ: true, converted: true, actualType: new Boolean()};
+                return {succ: true, converted: "True", actualType: new Boolean()};
             else if(str == "False" || str == "false")
-                return {succ: true, converted: false, actualType: new Boolean()};
+                return {succ: true, converted: "False", actualType: new Boolean()};
             else return failed;
         case LISTTYPE:
             if(str[0] == "[" && str[str.length - 1] == "]"){

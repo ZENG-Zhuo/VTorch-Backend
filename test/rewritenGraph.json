@@ -5,11 +5,11 @@
         "source": [],
         "target": [
             [
-                "input-input-fwd-return-1",
+                "input-input-fwd-return-",
                 "Conv2d-node1-fwd-input-"
             ],
             [
-                "input-input-fwd-return-1",
+                "input-input-fwd-return-",
                 "Identity-node3-fwd-input-"
             ]
         ]

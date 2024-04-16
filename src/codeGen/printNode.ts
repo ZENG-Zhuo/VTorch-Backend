@@ -5,6 +5,8 @@ const comma = ', ';
 // tslint:disable-next-line: max-func-body-length
 export function printTabbed(node: SyntaxNode, tabLevel: number, showTabs: Boolean = false): string {
   const tabs = showTabs ? ' '.repeat(4 * tabLevel) : "";
+  if(!node)
+    return "##UNDEFINED##";
   switch (node.type) {
     case 'assert':
       return tabs + 'assert ' + printNode(node.cond);
@@ -105,7 +107,7 @@ export function printTabbed(node: SyntaxNode, tabLevel: number, showTabs: Boolea
                 lines(elif.code, tabLevel + 1)
             )
           : '') +
-        (node.else ? tabs + 'else:' + lines(node.else.code, tabLevel + 1) : '')
+        (node.else ? "\n" + tabs + 'else:' + lines(node.else.code, tabLevel + 1) : '')
       );
     case 'ifexpr':
       return tabs + (
@@ -239,6 +241,8 @@ function commaSep(items: SyntaxNode[]): string {
 }
 
 function lines(items: SyntaxNode[], tabLevel: number): string {
+  if(items.length == 0)
+    return "\n" + ' '.repeat(4 * tabLevel) + "pass";
   return items
     .map(i => printTabbed(i, tabLevel, true))
     .join(tabLevel === 0 ? '\n\n' : '\n'); // seperate top-level definitons with an extra newline

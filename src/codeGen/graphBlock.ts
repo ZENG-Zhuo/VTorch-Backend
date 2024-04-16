@@ -5,10 +5,10 @@ import { Package } from "../common/pythonPackageType";
 import { PythonType, toPythonType } from "./pythonTypes";
 import * as pyType from "./pythonTypes"; 
 
-const INPUTBLKID = "input";
-const OUTPUTBLKID = "output";
+export const INPUTBLKID = "input";
+export const OUTPUTBLKID = "output";
 
-class EdgeEndpoint{
+export class EdgeEndpoint{
     readonly nodeType: string
     readonly nodeID: string
     readonly funcName: string 
@@ -28,7 +28,10 @@ class EdgeEndpoint{
     }
 
     asKey(): string{
-        return this.funcName + "-" + this.paramName + "-" + this.slotIdx;
+        return this.funcName + "-" + this.paramName;
+    }
+    asIDKey(): string{
+        return this.nodeID + "-" + this.funcName + "-" + this.paramName;
     }
     toString(): string{
         return this.nodeType + "-" + this.nodeID + "-" + this.funcName + "-" + this.paramName + "-" + this.slotIdx;
@@ -46,7 +49,7 @@ interface GraphJSON{
     [id: string] : BlockJSON
 }
 
-abstract class Block{
+export abstract class Block{
     blockId: string;
     blockType: string;
     fSrc: Map<string, EdgeEndpoint[]> = new Map();
@@ -97,10 +100,15 @@ abstract class Block{
         );
         return {name: this.blockType, literalParams: [], source, target};
     }
+    nonLitSources(): EdgeEndpoint[]{
+        return Array.from(this.fSrc.values()).flatMap((srcSlot) => 
+            srcSlot.filter(edg => edg.nodeType != Block.literalNodeType)
+        );
+    }
     static readonly literalNodeType = "Literal";
 }
 
-class LiteralBlock extends Block{
+export class LiteralBlock extends Block{
     original: string;
     converted: any = undefined;
     constantType?: PythonType;
@@ -115,7 +123,7 @@ class LiteralBlock extends Block{
     }
 }
 
-class LayerBlock extends Block{
+export class LayerBlock extends Block{
     fileInfo: FileModuleNode | FolderModuleNode
     blockClass: ClassInfo; 
     fSrcType: Map<string, PythonType[]> = new Map();
@@ -128,13 +136,13 @@ class LayerBlock extends Block{
 
         let initFunction = info.functions.find(f => f.name == "__init__")!;
         initFunction.parameters.forEach(param => {
-            this.fSrcType.set("ini-" + param.name + "-", [toPythonType(param.type_hint)]);
-            this.fSrc.set("ini-" + param.name + "-", []);
+            this.fSrcType.set("ini-" + param.name, [toPythonType(param.type_hint)]);
+            this.fSrc.set("ini-" + param.name, []);
         });
         let fwdFunction = info.functions.find(f => f.name == "forward")!;
         fwdFunction.parameters.forEach(param => {
-            this.fSrcType.set("fwd-" + param.name + "-", [toPythonType(param.type_hint)]);
-            this.fSrc.set("fwd-" + param.name + "-", []);
+            this.fSrcType.set("fwd-" + param.name, [toPythonType(param.type_hint)]);
+            this.fSrc.set("fwd-" + param.name, []);
         });
         this.fTarType = toPythonType(fwdFunction.return_type ? fwdFunction.return_type : undefined);
     }
@@ -184,14 +192,14 @@ class LayerBlock extends Block{
     }
 }
 
-class FunctionBlock extends Block{
+export class FunctionBlock extends Block{
 
 }
 
-class InputBlock extends Block{
+export class InputBlock extends Block{
     constructor(){super(INPUTBLKID, INPUTBLKID);}
 }
-class OutputBlock extends Block{
+export class OutputBlock extends Block{
     constructor(){super(OUTPUTBLKID, OUTPUTBLKID);}
 }
 
@@ -200,6 +208,9 @@ export class LayerGraph{
     outputBlock = new OutputBlock();
     graph: Map<string, Block> = new Map([[INPUTBLKID, this.inputBlock], [OUTPUTBLKID, this.outputBlock]]);
     torchPackage?: Package;
+
+    get(x: string) {return this.graph.get(x);}
+    entries() {return this.graph.entries();}
 
     initTorchPackage(){
         const packageId = Database.findPackage("torch", "1.0.0")!;
