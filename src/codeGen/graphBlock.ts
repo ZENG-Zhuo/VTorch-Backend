@@ -30,18 +30,30 @@ class EdgeEndpoint{
     asKey(): string{
         return this.funcName + "-" + this.paramName + "-" + this.slotIdx;
     }
-    
+    toString(): string{
+        return this.nodeType + "-" + this.nodeID + "-" + this.funcName + "-" + this.paramName + "-" + this.slotIdx;
+    }
+}
+
+interface BlockJSON{
+    literalParams: [name: string, value: string][],
+    name: string,
+    submodule?: string[],
+    source: [thisSlot: string, srcSlot: string][]
+    target: [thisSlot: string, tarSlot: string][]
+}
+interface GraphJSON{
+    [id: string] : BlockJSON
 }
 
 abstract class Block{
     blockId: string;
-    fSrc: Map<string, string[]> = new Map();
-    fTar: Map<string, string[]> = new Map();
-    constructor(_blockId?: string){
-        if(_blockId)
-            this.blockId = _blockId;
-        else
-            this.blockId = Block.genBlockID();
+    blockType: string;
+    fSrc: Map<string, EdgeEndpoint[]> = new Map();
+    fTar: Map<string, EdgeEndpoint[]> = new Map();
+    constructor(_blockType: string, _blockId?: string){
+        this.blockType = _blockType;
+        this.blockId = _blockId ? _blockId : Block.genBlockID();
     }
 
     static blockCount = 0;
@@ -49,22 +61,43 @@ abstract class Block{
         this.blockCount += 1;
         return `autogen$Block${this.blockCount}`;
     }
-    addSrc(key: string, blkId: string){
+    addSrc(thisEnd: EdgeEndpoint, src: EdgeEndpoint){
+        const key = thisEnd.asKey();
         if(this.fSrc.has(key)){
-            this.fSrc.get(key)?.push(blkId);
+            this.fSrc.get(key)?.push(src);
         }
         else{
-            this.fSrc.set(key, [blkId]);
+            this.fSrc.set(key, [src]);
         }
     }
-    addTar(key: string, blkId: string){
+    addTar(thisEnd: EdgeEndpoint, tar: EdgeEndpoint){
+        const key = thisEnd.asKey();
         if(this.fTar.has(key)){
-            this.fTar.get(key)?.push(blkId);
+            this.fTar.get(key)?.push(tar);
         }
         else{
-            this.fTar.set(key, [blkId]);
+            this.fTar.set(key, [tar]);
         }
     }
+    encodeNoneLitEdge(): BlockJSON{
+        let source = Array.from(this.fSrc.entries()).flatMap(([key, srcSlot]) => 
+            srcSlot.filter(edg => edg.nodeType != Block.literalNodeType)
+                .map(edg => [
+                        `${this.blockType}-${this.blockId}-${key}`, 
+                        edg.toString()
+                    ] as [string, string]
+                )
+        );
+        let target = Array.from(this.fTar.entries()).flatMap(([key, tarSlot]) => 
+            tarSlot.map(edg => [
+                        `${this.blockType}-${this.blockId}-${key}`, 
+                        edg.toString()
+                    ] as [string, string]
+                )
+        );
+        return {name: this.blockType, literalParams: [], source, target};
+    }
+    static readonly literalNodeType = "Literal";
 }
 
 class LiteralBlock extends Block{
@@ -73,9 +106,12 @@ class LiteralBlock extends Block{
     constantType?: PythonType;
     readonly defaultEdgeEnd;
     constructor(_value: string){
-        super();
+        super(Block.literalNodeType);
         this.original = _value;
-        this.defaultEdgeEnd = new EdgeEndpoint(`Literal-${this.blockId}-fwd-return`);
+        this.defaultEdgeEnd = new EdgeEndpoint(`${this.blockType}-${this.blockId}-fwd-return`);
+    }
+    getText(): string{
+        return (typeof(this.converted) == "undefined") ? this.original: String(this.converted);
     }
 }
 
@@ -86,7 +122,7 @@ class LayerBlock extends Block{
     fTarType: PythonType;
 
     constructor(id: string, info: ClassInfo, _fileInfo: FileModuleNode | FolderModuleNode){
-        super(id);
+        super(info.name, id);
         this.blockClass = info;
         this.fileInfo = _fileInfo;
 
@@ -106,7 +142,7 @@ class LayerBlock extends Block{
     connectIn(source: Block, thisEdgeEnd: EdgeEndpoint, srcEdgeEnd?: EdgeEndpoint): boolean{
         let value: string | PythonType;
         if(source instanceof LiteralBlock){
-            value = source.converted ? source.converted : source.original;
+            value = source.getText();
         }
         else if(source instanceof LayerBlock){
             value = source.fTarType;
@@ -117,7 +153,6 @@ class LayerBlock extends Block{
         else{
             return false;
         }
-        console.log(thisEdgeEnd);
         let types = this.fSrcType.get(thisEdgeEnd.asKey())!;
         console.log("connect In: trying to fit", value, "into", types[types.length-1]);
         let {match, rest} = pyType.deriveType(types[types.length-1], value, true);
@@ -133,14 +168,15 @@ class LayerBlock extends Block{
         console.log("Derived result", rest);
         if(rest){
             types.push(rest);
-            this.addSrc(thisEdgeEnd.asKey(), source.blockId);
             if(source instanceof LiteralBlock){
                 source.converted = match?.converted;
-                source.addTar(source.defaultEdgeEnd.asKey(), this.blockId);
+                source.addTar(source.defaultEdgeEnd, thisEdgeEnd);
+                this.addSrc(thisEdgeEnd, source.defaultEdgeEnd);
                 return true;
             }
             else if(source instanceof LayerBlock && srcEdgeEnd){
-                source.addTar(srcEdgeEnd.asKey(), this.blockId);
+                source.addTar(srcEdgeEnd, thisEdgeEnd);
+                this.addSrc(thisEdgeEnd, srcEdgeEnd);
                 return true;
             }
         }
@@ -153,24 +189,10 @@ class FunctionBlock extends Block{
 }
 
 class InputBlock extends Block{
-    constructor(){super(INPUTBLKID);}
+    constructor(){super(INPUTBLKID, INPUTBLKID);}
 }
 class OutputBlock extends Block{
-    constructor(){super(OUTPUTBLKID);}
-}
-
-interface GraphJSON{
-    [id: string] : {
-        params: {name: string, value: string}[],
-        name: string,
-        submodule?: string[],
-        source: {
-            [srcSlot: string] : string
-        },
-        target: {
-            [garSlot: string] : string
-        }
-    }
+    constructor(){super(OUTPUTBLKID, OUTPUTBLKID);}
 }
 
 export class LayerGraph{
@@ -192,8 +214,8 @@ export class LayerGraph{
         const sourceEnd = new EdgeEndpoint(sourceEdgeEnd);
         const targetEnd = new EdgeEndpoint(targetEdgeEnd);
         let onSucceed = () => {
-            this.graph.get(sourceEnd.nodeID)?.addTar(sourceEnd.asKey(), targetEnd.nodeID);
-            this.graph.get(targetEnd.nodeID)?.addSrc(targetEnd.asKey(), sourceEnd.nodeID);
+            this.graph.get(sourceEnd.nodeID)?.addTar(sourceEnd, targetEnd);
+            this.graph.get(targetEnd.nodeID)?.addSrc(targetEnd, sourceEnd);
             return {succ: true, msg: ""};
         }
         if(sourceEnd.nodeID == INPUTBLKID){
@@ -265,8 +287,8 @@ export class LayerGraph{
         console.log(this.graph);
         for(let id of Object.keys(graph)){
             let blockInfo = graph[id];
-            let params: {name:string, value:string}[] = blockInfo.params;
-            for(let {name, value} of params){
+            let params = blockInfo.literalParams;
+            for(let [name, value] of params){
                 let result = this.fillArg(name, value);
                 if(result.succ){
                     console.log("setting param", name, " succeed");
@@ -278,10 +300,9 @@ export class LayerGraph{
             console.log("all params added in ", id);
             
             let sources = blockInfo.source;
-            for(let [thisSlot, srcId] of Object.entries(sources)){
-                let [srcNodeSlot, _] = Object.entries(graph[srcId].target).find(([tarSlot, tarId]) => tarId == id)!;
-                console.log("find edge ", srcNodeSlot, " to ", thisSlot);
-                let ret = this.connectEdge(srcNodeSlot, thisSlot);
+            for(let [thisSlot, srcSlot] of sources){
+                console.log("find edge ", srcSlot, " to ", thisSlot);
+                let ret = this.connectEdge(srcSlot, thisSlot);
                 if(ret.succ){
                     console.log("edge setup succeed");
                 }
@@ -292,6 +313,31 @@ export class LayerGraph{
             console.log("all edges add in ", id);
         }
         console.log(this.graph);
+    }
+    toJSON(): GraphJSON{
+        let ret: GraphJSON = {};
+        for(let [id, block] of this.graph){
+            if(block instanceof LiteralBlock)
+                continue;
+            else if(block instanceof LayerBlock){
+                let literalParams = Array.from(block.fSrc.entries()).flatMap(([key, srcSlot]) => 
+                    srcSlot.filter(edg => edg.nodeType == Block.literalNodeType)
+                        .map(edg => [
+                                `${block.blockType}-${block.blockId}-${key}`, 
+                                (this.graph.get(edg.nodeID)! as LiteralBlock).getText()
+                            ] as [string, string]
+                        )
+                );
+                let body = block.encodeNoneLitEdge();
+                body.submodule = block.fileInfo.relativePath;
+                body.literalParams = literalParams;
+                ret[block.blockId] = body;
+            }
+            else{
+                ret[block.blockId] = block.encodeNoneLitEdge();
+            }
+        }
+        return ret;
     }
 }
 

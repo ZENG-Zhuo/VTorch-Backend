@@ -1,0 +1,138 @@
+{
+    "input": {
+        "name": "input",
+        "literalParams": [],
+        "source": [],
+        "target": [
+            [
+                "input-input-fwd-return-1",
+                "Conv2d-node1-fwd-input-"
+            ],
+            [
+                "input-input-fwd-return-1",
+                "Identity-node3-fwd-input-"
+            ]
+        ]
+    },
+    "output": {
+        "name": "output",
+        "literalParams": [],
+        "source": [
+            [
+                "output-output-fwd-input-",
+                "L1Loss-node4-fwd-return-"
+            ]
+        ],
+        "target": []
+    },
+    "node1": {
+        "name": "Conv2d",
+        "literalParams": [
+            [
+                "Conv2d-node1-ini-in_channels-",
+                "1"
+            ],
+            [
+                "Conv2d-node1-ini-out_channels-",
+                "1"
+            ],
+            [
+                "Conv2d-node1-ini-kernel_size-",
+                "1"
+            ],
+            [
+                "Conv2d-node1-ini-stride-",
+                "1"
+            ]
+        ],
+        "source": [
+            [
+                "Conv2d-node1-fwd-input-",
+                "input-input-fwd-return-1"
+            ]
+        ],
+        "target": [
+            [
+                "Conv2d-node1-fwd-return-",
+                "AvgPool2d-node2-fwd-input-"
+            ]
+        ],
+        "submodule": [
+            "torch",
+            "nn"
+        ]
+    },
+    "node2": {
+        "name": "AvgPool2d",
+        "literalParams": [
+            [
+                "AvgPool2d-node2-ini-kernel_size-",
+                "(1,1)"
+            ],
+            [
+                "AvgPool2d-node2-ini-ceil_mode-",
+                "true"
+            ]
+        ],
+        "source": [
+            [
+                "AvgPool2d-node2-fwd-input-",
+                "Conv2d-node1-fwd-return-"
+            ]
+        ],
+        "target": [
+            [
+                "AvgPool2d-node2-fwd-return-",
+                "L1Loss-node4-fwd-input-"
+            ]
+        ],
+        "submodule": [
+            "torch",
+            "nn"
+        ]
+    },
+    "node3": {
+        "name": "Identity",
+        "literalParams": [],
+        "source": [
+            [
+                "Identity-node3-fwd-input-",
+                "input-input-fwd-return-1"
+            ]
+        ],
+        "target": [
+            [
+                "Identity-node3-fwd-return-",
+                "L1Loss-node4-fwd-target-"
+            ]
+        ],
+        "submodule": [
+            "torch",
+            "nn"
+        ]
+    },
+    "node4": {
+        "name": "L1Loss",
+        "literalParams": [],
+        "source": [
+            [
+                "L1Loss-node4-fwd-input-",
+                "AvgPool2d-node2-fwd-return-"
+            ],
+            [
+                "L1Loss-node4-fwd-target-",
+                "Identity-node3-fwd-return-"
+            ]
+        ],
+        "target": [
+            [
+                "L1Loss-node4-fwd-return-",
+                "output-output-fwd-input-"
+            ]
+        ],
+        "submodule": [
+            "torch",
+            "nn"
+        ]
+    }
+}

@@ -49,6 +49,6 @@ function doTest(base: string, ders: (string | PythonType)[], doUnzip: boolean, e
 // doTest("_size_3_t", ["(10, 11, 12)"], true, "undefined");
 
 doTest("Boolean", ["True"], false, "true");
-doTest("Boolean", ["true"], false, "undefined");
+doTest("Boolean", ["true"], false, "true");
 
 console.log("all test passed");

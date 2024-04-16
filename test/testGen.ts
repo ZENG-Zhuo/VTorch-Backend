@@ -8,7 +8,9 @@ if (packageId){
 	const torch = Database.getPackage(packageId);
 	const nnId = torch.getSubModule(["torch", "nn"], false);
 	if (nnId){
-		const conv2d = Database.getNode(nnId).getClass("AvgPool2d")!;
-		console.log(conv2d.toString());
+		const nn = Database.getNode(nnId);
+		console.log(nn.relativePath);
+		const module = nn.getClass("Identity")!;
+		console.log(module.toString());
 	}
 }

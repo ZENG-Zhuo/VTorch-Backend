@@ -353,9 +353,9 @@ export function convertTo(textString: string, targetType: PythonType): {succ: bo
             else return {succ: true, converted: num, actualType: new Float()};
         }
         case BOOLTYPE:
-            if(str == "True")
+            if(str == "True" || str == "true")
                 return {succ: true, converted: true, actualType: new Boolean()};
-            else if(str == "False")
+            else if(str == "False" || str == "false")
                 return {succ: true, converted: false, actualType: new Boolean()};
             else return failed;
         case LISTTYPE:

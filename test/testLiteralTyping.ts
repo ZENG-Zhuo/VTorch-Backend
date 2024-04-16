@@ -22,6 +22,8 @@ doTest("float", "0x10", true);
 doTest("_float", "10", true);
 doTest("_bool", "True", true);
 doTest("bool", "False", true);
+doTest("_bool", "true", true);
+doTest("bool", "false", true);
 
 doTest("Tuple[int, dtype]", "(10, float32)", true);
 doTest("Tuple[int, int]", "(10, float32)", false);
