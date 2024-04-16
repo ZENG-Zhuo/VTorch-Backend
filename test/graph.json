@@ -1,0 +1,66 @@
+{
+	"input": {
+		"params": [],
+		"name": "input",
+		"source": {},
+		"target": {
+			"input-input-fwd-return": "node1"
+		}
+	},
+	"node1": {
+		"params": [
+			{
+				"name": "Conv2d-node1-ini-in_channels",
+				"value": "1"
+			},
+			{
+				"name": "Conv2d-node1-ini-out_channels",
+				"value": "1"
+			},
+			{
+				"name": "Conv2d-node1-ini-kernel_size",
+				"value": "1"
+			},
+			{
+				"name": "Conv2d-node1-ini-stride",
+				"value": "1"
+			}
+		],
+		"name": "Conv2d",
+		"submodule": ["torch", "nn"],
+		"source": {
+			"Conv2d-node1-fwd-input": "input"
+		},
+		"target": {
+			"Conv2d-node1-fwd-return": "node2"
+		}
+	},
+	"node2": {
+		"params": [
+			{
+				"name": "AvgPool2d-node2-ini-kernel_size",
+				"value": "(1,1)"
+			},
+			{
+				"name": "AvgPool2d-node2-ini-ceil_mode",
+				"value": "True"
+			}
+		],
+		"name": "AvgPool2d",
+		"submodule": ["torch", "nn"],
+		"source": {
+			"AvgPool2d-node2-fwd-input": "node1"
+		},
+		"target": {
+			"AvgPool2d-node2-fwd-return": "output"
+		}
+	},
+	"output": {
+		"params": [],
+		"name": "output",
+		"source": {
+			"output-output-fwd-input": "node2"
+		},
+		"target": {}
+	}
+}

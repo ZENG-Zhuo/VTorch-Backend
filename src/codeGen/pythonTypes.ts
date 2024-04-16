@@ -44,9 +44,9 @@ export const LISTTYPE = "List";
 export class List implements PythonType {
     readonly typename: string;
     readonly inner: PythonType;
-    constructor(inner: PythonType) {
+    constructor(_inner: PythonType) {
         this.typename = LISTTYPE;
-        this.inner = inner;
+        this.inner = _inner;
     }
 }
 
@@ -54,7 +54,7 @@ export const TUPLETYPE = "Tuple";
 export class Tuple implements PythonType {
     readonly typename: string;
     readonly inners: PythonType[];
-    constructor(readonly _inners: PythonType[]) {
+    constructor(_inners: PythonType[]) {
         this.typename = TUPLETYPE;
         this.inners = _inners;
     }
@@ -64,7 +64,7 @@ export const OPTIONAL = "Optional";
 export class Optional implements PythonType {
     readonly typename: string;
     readonly inner: PythonType;
-    constructor(readonly _inner: PythonType) {
+    constructor(_inner: PythonType) {
         this.typename = OPTIONAL;
         this.inner = _inner;
     }
@@ -74,7 +74,7 @@ export const UNIONTYPE = "Union";
 export class Union implements PythonType {
     readonly typename: string;
     readonly alters: PythonType[];
-    constructor(readonly _alters: PythonType[]) {
+    constructor(_alters: PythonType[]) {
         this.typename = UNIONTYPE;
         this.alters = _alters;
     }
@@ -83,8 +83,10 @@ export class Union implements PythonType {
 export const VARIADIC = "Variadic";
 export class Variadic implements PythonType {
     readonly typename: string;
-    constructor() {
+    readonly inner: PythonType;
+    constructor(_inner: PythonType) {
         this.typename = VARIADIC;
+        this.inner = _inner;
     }
 }
 
@@ -108,6 +110,12 @@ export class Arbitrary implements PythonType {
         this.adtName = name;
         this.adtArgs = args;
     }
+}
+
+export const NONETYPE = "None";
+export class None implements PythonType{
+    readonly typename: string;
+    constructor(){this.typename = NONETYPE;}
 }
 
 export const ENUM = "Enum";
@@ -194,24 +202,24 @@ function checkPredefinedADT(typeinfo: TypeInfo): PythonType {
         return new Union([new Integer(), createFixLenTuple(parseInt(matchresult[1]), () => new Integer())]);
     }
     if (typeName == "_size_any_t") {
-        return new Union([new Integer(), new Tuple([new Integer(), new Variadic()])]);
+        return new Union([new Integer(), new Tuple([new Integer(), new Variadic(new Integer())])]);
     }
     matchresult = /_size_(\d)+_opt_t/g.exec(typeName);
     if (matchresult) {
         return new Union([new Optional(new Integer()), createFixLenTuple(parseInt(matchresult[1]), () => new Optional(new Integer()))]);
     }
     if (typeName == "_size_any_opt_t") {
-        return new Union([new Optional(new Integer()), new Tuple([new Optional(new Integer()), new Variadic()])]);
+        return new Union([new Optional(new Integer()), new Tuple([new Optional(new Integer()), new Variadic(new Optional(new Integer()))])]);
     }
     matchresult = /_ratio_(\d)+_t/g.exec(typeName);
     if (matchresult) {
         return new Union([new Float(), createFixLenTuple(parseInt(matchresult[1]), () => new Float())]);
     }
     if (typeName == "_ratio_any_t") {
-        return new Union([new Float(), new Tuple([new Optional(new Integer()), new Variadic()])]);
+        return new Union([new Float(), new Tuple([new Float(), new Variadic(new Float())])]);
     }
     if (typeName == "_tensor_list_t") {
-        return new Union([new Tensor(), new Tuple([new Tensor(), new Variadic()])]);
+        return new Union([new Tensor(), new Tuple([new Tensor(), new Variadic(new Tensor())])]);
     }
     if (typeName == "_maybe_indices_t") {
         return new Union([new Tensor(), new Tuple([new Tensor(), new Tensor()])]);
@@ -238,6 +246,7 @@ export function toPythonType(typeinfo?: TypeInfo): PythonType {
         case "str":
             return new String();
         case BOOLTYPE:
+        case "Boolean":
             return new Boolean();
         case FLOATTYPE:
             return new Float();
@@ -247,8 +256,15 @@ export function toPythonType(typeinfo?: TypeInfo): PythonType {
                 return new List(toPythonType(typeinfo.getSubtypes()[0]));
             else
                 throw "toPythonType error: list type " + typeinfo.toString() + " has more than 1 arguments";
-        case TUPLETYPE:
-            return new Tuple(typeinfo.getSubtypes().map(toPythonType));
+        case TUPLETYPE: {
+            let inners = typeinfo.getSubtypes();
+            if(inners.length > 1 && inners[inners.length-1].getType() == VARIADIC){
+                let others = inners.slice(0, -1).map(toPythonType);
+                return new Tuple([...others, new Variadic(others[others.length - 1])]);
+            }
+            else
+                return new Tuple(typeinfo.getSubtypes().map(toPythonType));
+        }
         case OPTIONAL:
             if (typeinfo.getSubtypes().length == 1)
                 return new Optional(toPythonType(typeinfo.getSubtypes()[0]));
@@ -260,9 +276,11 @@ export function toPythonType(typeinfo?: TypeInfo): PythonType {
                 return new Optional(new Union(subtypes.filter(x => x.getType() != "None").map(toPythonType)))
             }
             else return new Union(subtypes.map(toPythonType));
-        }            
+        }
+        case NONETYPE:
+            return new None();       
         case VARIADIC:
-            return new Variadic();
+            return new Variadic(new Any());
         case TENSOR:
             return new Tensor(typeinfo.getSubtypes().length == 1 ? toPythonType(typeinfo.getSubtypes()[0]) : new Any());
         default:
@@ -307,9 +325,9 @@ function splitVal(expression: string): string[] | undefined {
     return parsedVal;
 }
 
-export function convertTo(textString: string, targetType: PythonType): {succ: boolean, converted: any}{
+export function convertTo(textString: string, targetType: PythonType): {succ: boolean, converted: any, actualType?: PythonType}{
     let tmp;
-    const failed = {succ: false, converted: null};
+    const failed = {succ: false, converted: null, actualType: undefined};
     const str = textString.trim();
     // console.log("checking", textString, targetType);
     switch (targetType.typename) {
@@ -317,7 +335,7 @@ export function convertTo(textString: string, targetType: PythonType): {succ: bo
             if((str[0] == '"' && str[str.length - 1] == '"') || (str[0] == '\'' && str[str.length - 1] == '\'')){
                 let splitted = splitVal(str);
                 if(splitted && splitted.length == 1)    //reject "x", "y"
-                    return {succ: true, converted: str};
+                    return {succ: true, converted: str, actualType: new String()};
             }
             return failed;
         case INTTYPE:{
@@ -325,28 +343,29 @@ export function convertTo(textString: string, targetType: PythonType): {succ: bo
             if(Number.isNaN(num) || !Number.isInteger(num)){
                 return failed;
             }
-            else return {succ: true, converted: tmp};
+            else {return {succ: true, converted: num, actualType: new Integer()};}
         }
         case FLOATTYPE:{
             const num = Number(str);
             if(Number.isNaN(tmp)){
                 return failed;
             }
-            else return {succ: true, converted: tmp};
+            else return {succ: true, converted: num, actualType: new Float()};
         }
         case BOOLTYPE:
             if(str == "True")
-                return {succ: true, converted: true};
+                return {succ: true, converted: true, actualType: new Boolean()};
             else if(str == "False")
-                return {succ: true, converted: false};
+                return {succ: true, converted: false, actualType: new Boolean()};
             else return failed;
         case LISTTYPE:
             if(str[0] == "[" && str[str.length - 1] == "]"){
                 let splitted = splitVal(str.substring(1, str.length-1));
                 if(splitted instanceof Array){
                     let innertype = (targetType as List).inner;
-                    let transResult = splitted.map(x => convertTo(x, innertype)).reduce((x, y) => x && y.succ, true);
-                    return transResult ? {succ: transResult, converted: str} : failed;
+                    let transResult = splitted.map(x => convertTo(x, innertype));
+                    let succ = transResult.reduce((x, y) => x && y.succ, true);
+                    return succ ? {succ, converted: str, actualType: new List(innertype)} : failed;
                 }
             }
             return failed;
@@ -361,8 +380,9 @@ export function convertTo(textString: string, targetType: PythonType): {succ: bo
                         else {
                             let transResult = splitted.map((x, i) =>
                                 convertTo(x, innertypes[i])
-                            ).reduce((x, y) => x && y.succ, true);
-                            return transResult ? {succ: transResult, converted: str} : failed;
+                            );
+                            let succ = transResult.reduce((x, y) => x && y.succ, true);
+                            return succ ? {succ, converted: str, actualType: new Tuple(transResult.map(x => x.actualType!))} : failed;
                         }
                     }
                     else {                                                      //Tuple[T, ...]
@@ -370,9 +390,10 @@ export function convertTo(textString: string, targetType: PythonType): {succ: bo
                             return failed;
                         else {
                             let transResult = splitted.map((x, i) => 
-                                i < innertypes.length - 1 ? convertTo(x, innertypes[i]) : convertTo(x, innertypes[innertypes.length - 2])
-                            ).reduce((x, y) => x && y.succ, true);
-                            return transResult ? {succ: transResult, converted: str} : failed;
+                                i < innertypes.length - 1 ? convertTo(x, innertypes[i]) : convertTo(x, innertypes[innertypes.length - 1])
+                            );
+                            let succ = transResult.reduce((x, y) => x && y.succ, true);
+                            return succ ? {succ, converted: str, actualType: new Tuple(transResult.map(x => x.actualType!))} : failed;
                         }
                     }
                 }
@@ -380,11 +401,18 @@ export function convertTo(textString: string, targetType: PythonType): {succ: bo
             return failed;
         case OPTIONAL:
             if(str == "None")
-                return {succ: true, converted: str};
+                return {succ: true, converted: str, actualType: new None()};
             else return convertTo(str, (targetType as Optional).inner);
+        case NONETYPE:
+            if(str == "None")
+                return {succ: true, converted: str, actualType: new None()};
+            return failed;
+        case VARIADIC:
+            return convertTo(str, (targetType as Variadic).inner);
         case UNIONTYPE: {
-            let ret = (targetType as Union).alters.map(x => convertTo(str, x)).reduce((x, y) => x || y.succ, false);
-            return ret ? {succ: ret, converted: str} : failed;
+            let alters = (targetType as Union).alters.map(x => convertTo(str, x));
+            let succ = alters.reduce((x, y) => x || y.succ, false);
+            return succ ? {succ, converted: str, actualType: alters.find(x => x.succ)?.actualType} : failed;
         }
         case TENSOR: {
             const tensorConsRegex = /^\s*(torch\.)?[tT]ensor\((.*)\)\s*$/g;
@@ -394,7 +422,7 @@ export function convertTo(textString: string, targetType: PythonType): {succ: bo
                 if(args instanceof Array){
                     let arg1ListCheck = convertTo(args[0], new List((targetType as Tensor).typeArg));
                     if(arg1ListCheck.succ)
-                        return {succ: true, converted: matchRet[1] ? str : "torch." + str};
+                        return {succ: true, converted: matchRet[1] ? str : "torch." + str, actualType: new Tensor()};
                 }
             }
             return failed;
@@ -406,19 +434,22 @@ export function convertTo(textString: string, targetType: PythonType): {succ: bo
                 return failed;
             else {
                 if(Enum.mapping.get((targetType as Enum).enumname)?.find(x => x == matchRet[2])){
-                    return {succ: true, converted: matchRet[1] ? str : "torch." + str};
+                    return {succ: true, converted: matchRet[1] ? str : "torch." + str, actualType: targetType};
                 }
                 else return failed;
             }
         }
         case ANYTYPE: 
-            return {succ: true, converted: str};
+            return {succ: true, converted: str, actualType: new Any()};
         default:
             return failed;
     }
 }
 
 export function isSubType(srcType: PythonType, tarType: PythonType): boolean{
+    // console.log(tarType);
+    if(srcType.typename == ANYTYPE)
+        return true;
     switch (tarType.typename){
         case INTTYPE:
         case BOOLTYPE:
@@ -432,7 +463,7 @@ export function isSubType(srcType: PythonType, tarType: PythonType): boolean{
             if(srcType.typename != TUPLETYPE)   return false;
             function grepInneri(inners: PythonType[], idx: number): PythonType | undefined{
                 if(idx >= inners.length - 1 && inners[inners.length-1].typename == VARIADIC)
-                    return inners[inners.length-2];
+                    return inners[inners.length - 1];
                 if(idx < inners.length)
                     return inners[idx];
                 return undefined;
@@ -455,8 +486,15 @@ export function isSubType(srcType: PythonType, tarType: PythonType): boolean{
             return true;
         }
         case OPTIONAL:
-            return isSubType(srcType, (tarType as Optional).inner) || 
+            return isSubType(srcType, (tarType as Optional).inner) || isSubType(srcType, new None()) || 
                 (srcType.typename == OPTIONAL && isSubType((srcType as Optional).inner, (tarType as Optional).inner));
+        case VARIADIC:
+            if(srcType.typename == VARIADIC){
+                return isSubType((srcType as Variadic).inner, (tarType as Variadic).inner);
+            }
+            else{
+                return isSubType(srcType, (tarType as Variadic).inner);
+            }
         case UNIONTYPE: {
             if(srcType.typename != UNIONTYPE){
                 return (tarType as Union).alters.map(x => isSubType(srcType, x)).reduce((x, y) => x || y, false);
@@ -471,10 +509,94 @@ export function isSubType(srcType: PythonType, tarType: PythonType): boolean{
             return srcType.typename == ENUM && (srcType as Enum).enumname == (tarType as Enum).enumname;
         case ADT:
             return srcType.typename == ADT && (srcType as Arbitrary).adtName == (tarType as Arbitrary).adtName;
+        case NONETYPE:
+            return srcType.typename == NONETYPE;
         case TENSOR:
             return srcType.typename == TENSOR && isSubType((srcType as Tensor).typeArg, (tarType as Tensor).typeArg);
         case ANYTYPE:
             return true;
+        default:
+            return false;
+    }
+}
+
+//only may unzip first level tuple when originType has length 1, i.e. originType = [Tuple(A, B, C)] => [B, C]
+export function deriveType(originType: PythonType | undefined, delta: string | PythonType, doUnzip: boolean): {match?: {succ: boolean, converted: any, actualType?: PythonType}, rest: PythonType | undefined}{
+    const failed = {rest: undefined};
+    if(typeof(originType) == "undefined")
+        return failed;
+    let convertAsAtomicType: ((org: PythonType) => {match?: {succ: boolean, converted: any, actualType?: PythonType}, rest: PythonType | undefined}) = (org) => {
+        if(doUnzip)
+            return failed;
+        if(typeof(delta) == "string"){
+            let whole = convertTo(delta, org);
+            if(whole.succ){
+                return {match: whole, rest: new None()};
+            }
+            else
+                return failed;
+        }
+        else {
+            let whole = isSubType(delta, org);
+            return whole ? {rest: new None()} : failed;
+        }
+    }
+
+    // console.log("deriving", originType, doUnzip);
+    switch (originType.typename){
+        case TUPLETYPE:{
+            if(doUnzip){
+                let inners = (originType as Tuple).inners;
+                let first = deriveType(inners[0], delta, false);
+                if(!first.rest || !nullable(first.rest))
+                    return failed;
+                let leftOver: PythonType[] = (inners[0].typename == VARIADIC) ? inners : inners.slice(1);
+                return {match: first.match, rest: leftOver.length > 0 ? new Tuple(leftOver) : new None()};
+            }
+            else {
+                return convertAsAtomicType(originType);
+            }
+        }
+        case OPTIONAL:{
+            let inner = (originType as Optional).inner;
+            let innerResult = deriveType(inner, delta, doUnzip);
+            let noneResult = convertAsAtomicType(new None());
+            if(innerResult.rest && noneResult.rest)
+                return {match: innerResult.match, rest: new Union([innerResult.rest, noneResult.rest])}
+            else if(innerResult.rest)
+                return innerResult;
+            else if(noneResult)
+                return noneResult;
+            return failed;
+        }
+        case UNIONTYPE: {
+            let alters = (originType as Union).alters;
+            let innerResults = alters.map(x => deriveType(x, delta, doUnzip));
+            let filterNotUndef = innerResults.map(({rest}) => rest).filter((x): x is PythonType => !!x);
+            // console.log(filterNotUndef);
+            if(filterNotUndef.length > 1)
+                return {match: innerResults.find(({rest}) => rest)?.match, rest: new Union(filterNotUndef)};
+            else if(filterNotUndef.length == 1)
+                return {match: innerResults.find(({rest}) => rest)?.match, rest: filterNotUndef[0]};
+            return failed;
+        }
+        case ANYTYPE:{
+            let ret = convertAsAtomicType(originType);
+            return {match: ret.match, rest: new Any()};
+        }
+        default:
+            return convertAsAtomicType(originType);
+    }
+}
+
+export function nullable(target: PythonType): boolean{
+    switch(target.typename){
+        case OPTIONAL: return true;
+        case NONETYPE: return true;
+        case UNIONTYPE:
+            return (target as Union).alters.map(x => nullable(x)).reduce((x, y) => x || y, false);
+        case TUPLETYPE:
+            return (target as Tuple).inners[0].typename == VARIADIC;
         default:
             return false;
     }
