@@ -24,7 +24,6 @@ export async function parsePythonFile(
     if (!(filePath.endsWith(".py") || filePath.endsWith(".pyi"))) {
         throw new Error(`FileModule ${filePath} does not end with .py`);
     }
-    let name = getBasename(filePath);
     let uuid = randomUUID();
     const pythonCode = readFile(
         filePath,
@@ -42,7 +41,6 @@ export async function parsePythonFile(
                         uuid,
                         filePath,
                         baseRelativePath.concat([getBasename(filePath)]),
-                        name,
                         classesFunctionsImports[0],
                         classesFunctionsImports[1],
                         classesFunctionsImports[2],
