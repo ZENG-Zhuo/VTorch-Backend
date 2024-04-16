@@ -34,6 +34,38 @@ codeGenRouter.post("/delEdge", (req, res) => {
 	else res.status(400).send(result.msg);	
 });
 
+// body: {"id": "node1", "name": "Conv2d", "submodule": ["torch", "nn"]}
+codeGenRouter.post("/addBlock", (req, res) => {
+	console.log(req.body);
+    let id: string = req.body.id;
+	let name: string = req.body.name;
+	let submodule: string[] = req.body.submodule;
+
+	const result = globalLayerGraph.addBlockByName(id, name, submodule);
+	if(result.succ){
+		res.send("true");
+	}
+	else res.status(400).send(result.msg);
+});
+
+// body: {"id": "node1"}
+codeGenRouter.post("/delBlock", (req, res) => {
+    console.log(req.body);
+    let source: string = req.body.source;
+	let target: string = req.body.target;
+	
+	// not implemented yet
+	const result = {
+		"succ": true,	//may be false
+		"msg": ""
+	};
+
+	if(result.succ){
+		res.send("true");
+	}
+	else res.status(400).send(result.msg);	
+});
+
 // body: {"target": "avgpool-node1-ini-in_channels", "value": "1"}
 // return: true if arg setting accepted, false if arg setting rejected (type not match)
 codeGenRouter.post("/addArgument", (req, res) => {

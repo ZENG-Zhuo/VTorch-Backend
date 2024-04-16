@@ -177,6 +177,12 @@ export class LayerGraph{
     inputBlock = new InputBlock();
     outputBlock = new OutputBlock();
     graph: Map<string, Block> = new Map([[INPUTBLKID, this.inputBlock], [OUTPUTBLKID, this.outputBlock]]);
+    torchPackage?: Package;
+
+    initTorchPackage(){
+        const packageId = Database.findPackage("torch", "1.0.0")!;
+        this.torchPackage = Database.getPackage(packageId);
+    }
 
     addBlock(id: string, blockClass: ClassInfo, fileInfo: FileModuleNode | FolderModuleNode){
         this.graph.set(id, new LayerBlock(id, blockClass, fileInfo));
@@ -225,20 +231,34 @@ export class LayerGraph{
         return {succ: false, msg: ""};
     }
 
+    addBlockByName(id: string, name: string, submodule: string[]): {succ: boolean, msg: string} {
+        if(!this.torchPackage)
+            this.initTorchPackage();
+        console.log(id, name, submodule);
+        const submoduleID = this.torchPackage!.getSubModule(submodule, false);
+        if(typeof(submoduleID) == "undefined")
+            return {succ: false, msg: "Cannot find submodule"};
+        const thissubmodele = Database.getNode(submoduleID);
+        const classInfo = thissubmodele.getClass(name);
+        if(typeof(classInfo) == "undefined")
+            return {succ: false, msg: "Cannot find class"};
+        if(this.graph.has(id))
+            return {succ: false, msg: "Block ID duplicated"};
+        this.addBlock(id, classInfo, thissubmodele);
+        return {succ: true, msg: ""};
+    }
+
     initFromJSON(jsonObj: any){
-        const packageId = Database.findPackage("torch", "1.0.0")!;
-        const torch = Database.getPackage(packageId);
         let graph: GraphJSON = jsonObj;
         for(let id of Object.keys(graph)){
             if(id == INPUTBLKID || id == OUTPUTBLKID)
                 continue;
             let blockInfo = graph[id];
             if(blockInfo.submodule){
-                const submoduleID = torch.getSubModule(blockInfo.submodule, false)!;
-                const submodule = Database.getNode(submoduleID);
-                const classInfo = submodule.getClass(blockInfo.name)!;
-                this.addBlock(id, classInfo, submodule);
-                console.log("add node ", id);
+                let ret = this.addBlockByName(id, blockInfo.name, blockInfo.submodule);
+                if(!ret.succ){
+                    console.error("add " + id + "failed", ret.msg);
+                }
             }
         }
         console.log("all nodes added");
