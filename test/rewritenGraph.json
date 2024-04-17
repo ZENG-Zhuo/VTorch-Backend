@@ -23,7 +23,12 @@
                 "L1Loss-node4-fwd-return-"
             ]
         ],
-        "target": []
+        "target": [
+            [
+                "output-output-fwd-return-",
+                "Tanh-node5-fwd-input-"
+            ]
+        ]
     },
     "node1": {
         "name": "Conv2d",
@@ -130,6 +135,21 @@
                 "output-output-fwd-input-"
             ]
         ],
+        "submodule": [
+            "torch",
+            "nn"
+        ]
+    },
+    "node5": {
+        "name": "Tanh",
+        "literalParams": [],
+        "source": [
+            [
+                "Tanh-node5-fwd-input-",
+                "output-output-fwd-return-"
+            ]
+        ],
+        "target": [],
         "submodule": [
             "torch",
             "nn"

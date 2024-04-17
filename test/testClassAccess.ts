@@ -10,7 +10,7 @@ if (packageId){
 	if (nnId){
 		const nn = Database.getNode(nnId);
 		console.log(nn.relativePath);
-		const module = nn.getClass("Identity")!;
+		const module = nn.getClass("Tanh")!;
 		console.log(module.toString());
 	}
 }

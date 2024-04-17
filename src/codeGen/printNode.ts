@@ -31,8 +31,7 @@ export function printTabbed(node: SyntaxNode, tabLevel: number, showTabs: Boolea
         'class ' +
         node.name +
         (node.extends ? '(' + commaSep(node.extends) + ')' : '') +
-        ':\n' +
-        lines(node.code, tabLevel + 1)
+        ':' + lines(node.code, tabLevel + 1)
       );
     case 'comp_for':
     case 'comp_if':
@@ -58,15 +57,14 @@ export function printTabbed(node: SyntaxNode, tabLevel: number, showTabs: Boolea
         node.name +
         '(' +
         node.params.map(printParam).join(comma) +
-        '):\n' +
-        lines(node.code, tabLevel + 1)
+        '):' + lines(node.code, tabLevel + 1)
       );
     case 'dict':
       return tabs + '{' + node.entries.map(e => e.k + ':' + e.v) + '}';
     case 'dot':
       return tabs + printNode(node.value) + '.' + node.name;
     case 'else':
-      return tabs + 'else:\n' + lines(node.code, tabLevel + 1);
+      return tabs + 'else:' + lines(node.code, tabLevel + 1);
     case 'for':
       return (
         tabs +
@@ -74,8 +72,7 @@ export function printTabbed(node: SyntaxNode, tabLevel: number, showTabs: Boolea
         commaSep(node.target) +
         ' in ' +
         commaSep(node.iter) +
-        ':\n' +
-        lines(node.code, tabLevel + 1) +
+        ':' + lines(node.code, tabLevel + 1) +
         (node.else ? lines(node.else, tabLevel + 1) : '')
       );
     case 'from':
@@ -95,8 +92,7 @@ export function printTabbed(node: SyntaxNode, tabLevel: number, showTabs: Boolea
         tabs +
         'if ' +
         printNode(node.cond) +
-        ':\n' +
-        lines(node.code, tabLevel + 1) +
+        ':' + lines(node.code, tabLevel + 1) +
         (node.elif
           ? node.elif.map(
               elif =>
@@ -243,7 +239,7 @@ function commaSep(items: SyntaxNode[]): string {
 function lines(items: SyntaxNode[], tabLevel: number): string {
   if(items.length == 0)
     return "\n" + ' '.repeat(4 * tabLevel) + "pass";
-  return items
+  return "\n" + items
     .map(i => printTabbed(i, tabLevel, true))
     .join(tabLevel === 0 ? '\n\n' : '\n'); // seperate top-level definitons with an extra newline
 }

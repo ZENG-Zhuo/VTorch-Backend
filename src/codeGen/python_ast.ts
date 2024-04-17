@@ -463,7 +463,7 @@ export function Else(code: SyntaxNode[]): Else {
 }
 
 
-export function For(target: SyntaxNode[], iter: SyntaxNode[], code: SyntaxNode[], els: SyntaxNode[]): For {
+export function For(target: SyntaxNode[], iter: SyntaxNode[], code: SyntaxNode[], els?: SyntaxNode[]): For {
   return {type: "for", target, iter, code, else: els}
 }
 

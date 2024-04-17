@@ -134,11 +134,13 @@ export class LayerBlock extends Block{
         this.blockClass = info;
         this.fileInfo = _fileInfo;
 
-        let initFunction = info.functions.find(f => f.name == "__init__")!;
-        initFunction.parameters.forEach(param => {
-            this.fSrcType.set("ini-" + param.name, [toPythonType(param.type_hint)]);
-            this.fSrc.set("ini-" + param.name, []);
-        });
+        let initFunction = info.functions.find(f => f.name == "__init__");
+        if(initFunction){
+            initFunction.parameters.forEach(param => {
+                this.fSrcType.set("ini-" + param.name, [toPythonType(param.type_hint)]);
+                this.fSrc.set("ini-" + param.name, []);
+            });
+        }
         let fwdFunction = info.functions.find(f => f.name == "forward")!;
         fwdFunction.parameters.forEach(param => {
             this.fSrcType.set("fwd-" + param.name, [toPythonType(param.type_hint)]);
@@ -229,10 +231,7 @@ export class LayerGraph{
             this.graph.get(targetEnd.nodeID)?.addSrc(targetEnd, sourceEnd);
             return {succ: true, msg: ""};
         }
-        if(sourceEnd.nodeID == INPUTBLKID){
-            return onSucceed();
-        }
-        else if(targetEnd.nodeID == OUTPUTBLKID){
+        if(sourceEnd.nodeID == INPUTBLKID || sourceEnd.nodeID == OUTPUTBLKID || targetEnd.nodeID == INPUTBLKID || targetEnd.nodeID == OUTPUTBLKID){
             return onSucceed();
         }
         else{
