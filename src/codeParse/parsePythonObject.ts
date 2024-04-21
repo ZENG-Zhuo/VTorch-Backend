@@ -19,6 +19,7 @@ import {
     RelativePathInfo,
 } from "../common/pythonObjectTypes";
 import { TerminalNode } from "antlr4ts/tree/TerminalNode";
+import { NodeId } from "../common/pythonFileTypes";
 
 function parseTypeHint(typeContext?: TestContext): TypeInfo | undefined {
     if (typeContext == undefined) return undefined;
@@ -137,9 +138,13 @@ function parseFuncDef(funcContext: FuncdefContext): FuncInfo {
     );
 }
 
-function parseClassDef(classContext: ClassdefContext): ClassInfo {
+function parseClassDef(
+    classContext: ClassdefContext,
+    moduleID: NodeId
+): ClassInfo {
     var resultClass = new ClassInfo(
         classContext.NAME().text,
+        moduleID,
         classContext
             .arglist()
             ?.argument()
@@ -239,7 +244,8 @@ function parseImportStmt(
 }
 
 export function extractClassesAndFunctions(
-    code: string
+    code: string,
+    moduleID: NodeId
 ): [ClassInfo[], FuncInfo[], ImportInfo[]] {
     const tree = parse(code.replace(/(\s?([\/\*])\s?,)+/g, ""));
     const classes: ClassInfo[] = [];
@@ -252,7 +258,7 @@ export function extractClassesAndFunctions(
             if (parsedImports) imports = imports.concat(parsedImports);
         },
         visitClassdef: (classDef) => {
-            classes.push(parseClassDef(classDef));
+            classes.push(parseClassDef(classDef, moduleID));
         },
         visitFuncdef: (funcDef) => {
             functions.push(parseFuncDef(funcDef));

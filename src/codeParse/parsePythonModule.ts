@@ -32,8 +32,10 @@ export async function parsePythonFile(
             if (err) {
                 console.error(err.message);
             } else {
-                let classesFunctionsImports =
-                    extractClassesAndFunctions(pythonCode);
+                let classesFunctionsImports = extractClassesAndFunctions(
+                    pythonCode,
+                    uuid
+                );
                 const __all__ = extractAllObjects(pythonCode);
                 Database.setNode(
                     uuid,
@@ -93,7 +95,7 @@ export async function buildModuleTree(
                         console.error(err.message);
                     } else {
                         let classesFunctionsImports =
-                            extractClassesAndFunctions(pythonCode);
+                            extractClassesAndFunctions(pythonCode, uuid);
                         const __all__ = extractAllObjects(pythonCode);
                         root.classes = classesFunctionsImports[0];
                         root.functions = classesFunctionsImports[1];
