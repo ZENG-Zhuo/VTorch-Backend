@@ -8,7 +8,8 @@ const UDBMap: Map<string, UDBInfo> = new Map();
 
 UDBRouter.post("/addUDB", async (req, res) => {
     try {
-        const data = req.body as UDBData;
+        console.log(req.body);
+        const data: UDBData = { name: req.body.name, code: req.body.code };
         const UDBinfo = new UDBInfo(data);
         const [classes, functions, _] = extractClassesAndFunctions(
             UDBinfo.data.code,
@@ -22,7 +23,7 @@ UDBRouter.post("/addUDB", async (req, res) => {
                 initFunc.parameters.map((p, i) => {
                     if (i !== 0 && !p.type_hint) {
                         returnMsg = returnMsg.concat(
-                            `Warning: class ${c.name}'s init function has no full type hint(parameter${p.name})!\n\r`
+                            `Warning: class ${c.name}'s init function has no full type hint(parameter: ${p.name})!\n\r`
                         );
                     }
                 });
@@ -37,7 +38,7 @@ UDBRouter.post("/addUDB", async (req, res) => {
                 forwardFunc.parameters.map((p, i) => {
                     if (i !== 0 && !p.type_hint) {
                         returnMsg = returnMsg.concat(
-                            `Warning: class ${c.name}'s forward function has no full type hint(parameter${p.name})!\n\r`
+                            `Warning: class ${c.name}'s forward function has no full type hint(parameter: ${p.name})!\n\r`
                         );
                     }
                 });
@@ -57,7 +58,7 @@ UDBRouter.post("/addUDB", async (req, res) => {
             f.parameters.map((p) => {
                 if (!p.type_hint) {
                     returnMsg = returnMsg.concat(
-                        `Warning: Function ${f.name} has no full type hint(parameter${p.name})!\n\r`
+                        `Warning: Function ${f.name} has no full type hint(parameter: ${p.name})!\n\r`
                     );
                 }
             });
@@ -78,4 +79,8 @@ UDBRouter.post("/addUDB", async (req, res) => {
     } catch (error) {
         res.status(400).send("Parse Error");
     }
+});
+
+UDBRouter.post("/getUDBs", async (req, res) => {
+    res.send(Array.from(UDBMap.entries()));
 });
