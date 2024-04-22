@@ -8,7 +8,7 @@ import {
     extractAllObjects,
     extractClassesAndFunctions,
 } from "./parsePythonObject";
-import { lstatSync, readFile } from "fs";
+import { existsSync, lstatSync, readFile } from "fs";
 import * as path from "path";
 import { globSync } from "glob";
 import { Database } from "../common/objectStorage";
@@ -24,7 +24,6 @@ export async function parsePythonFile(
     if (!(filePath.endsWith(".py") || filePath.endsWith(".pyi"))) {
         throw new Error(`FileModule ${filePath} does not end with .py`);
     }
-    let name = getBasename(filePath);
     let uuid = randomUUID();
     const pythonCode = readFile(
         filePath,
@@ -33,8 +32,10 @@ export async function parsePythonFile(
             if (err) {
                 console.error(err.message);
             } else {
-                let classesFunctionsImports =
-                    extractClassesAndFunctions(pythonCode);
+                let classesFunctionsImports = extractClassesAndFunctions(
+                    pythonCode,
+                    uuid
+                );
                 const __all__ = extractAllObjects(pythonCode);
                 Database.setNode(
                     uuid,
@@ -42,7 +43,6 @@ export async function parsePythonFile(
                         uuid,
                         filePath,
                         baseRelativePath.concat([getBasename(filePath)]),
-                        name,
                         classesFunctionsImports[0],
                         classesFunctionsImports[1],
                         classesFunctionsImports[2],
@@ -95,7 +95,7 @@ export async function buildModuleTree(
                         console.error(err.message);
                     } else {
                         let classesFunctionsImports =
-                            extractClassesAndFunctions(pythonCode);
+                            extractClassesAndFunctions(pythonCode, uuid);
                         const __all__ = extractAllObjects(pythonCode);
                         root.classes = classesFunctionsImports[0];
                         root.functions = classesFunctionsImports[1];
@@ -106,8 +106,23 @@ export async function buildModuleTree(
             } else if (
                 lstatSync(fileName).isFile() &&
                 (fileName.endsWith(".py") || fileName.endsWith(".pyi"))
-                // !path.basename(fileName).startsWith("_")
             ) {
+                // If its pyi and py exists continue
+                if (
+                    fileName.endsWith("pyi") &&
+                    existsSync(
+                        path.join(
+                            path.dirname(fileName),
+                            `${getBasename(fileName)}.py`
+                        )
+                    )
+                ) {
+                    console.log(
+                        `Continuing because ${getBasename(fileName)}.py exists`
+                    );
+                    continue;
+                }
+
                 // If it's a Python module, add it as a child node
                 const child = await parsePythonFile(fileName, relativePath);
                 root.children.push(child);

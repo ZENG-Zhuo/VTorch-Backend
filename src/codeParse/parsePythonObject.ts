@@ -19,6 +19,7 @@ import {
     RelativePathInfo,
 } from "../common/pythonObjectTypes";
 import { TerminalNode } from "antlr4ts/tree/TerminalNode";
+import { NodeId } from "../common/pythonFileTypes";
 
 function parseTypeHint(typeContext?: TestContext): TypeInfo | undefined {
     if (typeContext == undefined) return undefined;
@@ -113,6 +114,12 @@ function parseParamerters(
     }
 
     let resultLen = result.length;
+    if (argslist.POWER()) {
+        resultLen -= 1;
+    }
+    if (argslist.STAR()) {
+        resultLen -= 1;
+    }
     const initialValues = argslist.test();
     let initialValueLen = initialValues.length;
     for (let i = 0; i < initialValueLen; i++) {
@@ -132,9 +139,13 @@ function parseFuncDef(funcContext: FuncdefContext): FuncInfo {
     );
 }
 
-function parseClassDef(classContext: ClassdefContext): ClassInfo {
+function parseClassDef(
+    classContext: ClassdefContext,
+    moduleID: NodeId
+): ClassInfo {
     var resultClass = new ClassInfo(
         classContext.NAME().text,
+        moduleID,
         classContext
             .arglist()
             ?.argument()
@@ -234,9 +245,10 @@ function parseImportStmt(
 }
 
 export function extractClassesAndFunctions(
-    code: string
+    code: string,
+    moduleID: NodeId
 ): [ClassInfo[], FuncInfo[], ImportInfo[]] {
-    const tree = parse(code);
+    const tree = parse(code.replace(/(\s?([\/\*])\s?,)+/g, ""));
     const classes: ClassInfo[] = [];
     const functions: FuncInfo[] = [];
     let imports: ImportInfo[] = [];
@@ -247,7 +259,7 @@ export function extractClassesAndFunctions(
             if (parsedImports) imports = imports.concat(parsedImports);
         },
         visitClassdef: (classDef) => {
-            classes.push(parseClassDef(classDef));
+            classes.push(parseClassDef(classDef, moduleID));
         },
         visitFuncdef: (funcDef) => {
             functions.push(parseFuncDef(funcDef));
