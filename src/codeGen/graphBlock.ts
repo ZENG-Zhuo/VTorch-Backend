@@ -1,6 +1,6 @@
 import { Database } from "../common/objectStorage";
 import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
-import { ClassInfo, TypeInfo } from "../common/pythonObjectTypes";
+import { ClassInfo, FuncInfo, TypeInfo } from "../common/pythonObjectTypes";
 import { Package } from "../common/pythonPackageType";
 import { PythonType, toPythonType } from "./pythonTypes";
 import * as pyType from "./pythonTypes"; 
@@ -14,17 +14,27 @@ export class EdgeEndpoint{
     readonly funcName: string 
     readonly paramName: string 
     readonly slotIdx: string
+
+    constructor(nodeType: string, nodeID: string, funcName: string, paramName: string, slotIdx: string){
+        this.nodeType = nodeType;
+        this.nodeID = nodeID;
+        this.funcName = funcName; 
+        this.paramName = paramName; 
+        this.slotIdx = slotIdx;
+    }
     
     // avgpool-node1-fwd-input
     // avgpool-node1-ini-name-1
     // avgpool-node1-fwd-return
-    constructor(edgeEndName: string){
+    static fromEdgeEndString(edgeEndName: string){
         const splitted = edgeEndName.split('-');
-        this.nodeType = splitted[0];
-        this.nodeID = splitted[1];
-        this.funcName = splitted[2]; 
-        this.paramName = splitted[3]; 
-        this.slotIdx = splitted.length > 4 ? splitted[4] : "";
+        return new EdgeEndpoint(splitted[0], splitted[1], splitted[2], splitted[3], splitted.length > 4 ? splitted[4] : "");
+    }
+
+    //key = fwd-input
+    static fromKeyString(block: Block, key: string){
+        const splitted = key.split('-');
+        return new EdgeEndpoint(block.blockType, block.blockId, splitted[0], splitted[1], "");
     }
 
     asKey(): string{
@@ -108,45 +118,52 @@ export abstract class Block{
     static readonly literalNodeType = "Literal";
 }
 
-export class LiteralBlock extends Block{
-    original: string;
-    converted: any = undefined;
-    constantType?: PythonType;
-    readonly defaultEdgeEnd;
-    constructor(_value: string){
-        super(Block.literalNodeType);
-        this.original = _value;
-        this.defaultEdgeEnd = new EdgeEndpoint(`${this.blockType}-${this.blockId}-fwd-return`);
-    }
-    getText(): string{
-        return (typeof(this.converted) == "undefined") ? this.original: String(this.converted);
-    }
-}
-
-export class LayerBlock extends Block{
-    fileInfo: FileModuleNode | FolderModuleNode
-    blockClass: ClassInfo; 
+export abstract class TypedParamBlock extends Block{
     fSrcType: Map<string, PythonType[]> = new Map();
-    fTarType: PythonType;
+    // only used to determine a single connected source is treated a pure value or a tuple with single value
+    fSrcIsTuple: Map<string, boolean> = new Map();
+    fTarType: PythonType = new pyType.Any();
 
-    constructor(id: string, info: ClassInfo, _fileInfo: FileModuleNode | FolderModuleNode){
-        super(info.name, id);
-        this.blockClass = info;
-        this.fileInfo = _fileInfo;
+    static funcNameMapping(func: FuncInfo): string{
+        return func.name == "__init__" ? "ini" : "fwd";
+    }
 
-        let initFunction = info.functions.find(f => f.name == "__init__");
-        if(initFunction){
-            initFunction.parameters.forEach(param => {
-                this.fSrcType.set("ini-" + param.name, [toPythonType(param.type_hint)]);
-                this.fSrc.set("ini-" + param.name, []);
-            });
-        }
-        let fwdFunction = info.functions.find(f => f.name == "forward")!;
-        fwdFunction.parameters.forEach(param => {
-            this.fSrcType.set("fwd-" + param.name, [toPythonType(param.type_hint)]);
-            this.fSrc.set("fwd-" + param.name, []);
+    addFunctionParams(func: FuncInfo, isForward: boolean) {
+        let funcName = TypedParamBlock.funcNameMapping(func);
+        func.parameters.forEach(param => {
+            this.fSrcType.set(funcName + '-' + param.name, [toPythonType(param.type_hint)]);
+            this.fSrcIsTuple.set(funcName + '-' + param.name, false);
+            this.fSrc.set(funcName + '-' + param.name, []);
         });
-        this.fTarType = toPythonType(fwdFunction.return_type ? fwdFunction.return_type : undefined);
+        if(isForward){
+            this.fTarType = toPythonType(func.return_type ? func.return_type : undefined);
+        }
+    }
+
+    appendType(edgeEnd: EdgeEndpoint, value: PythonType | string): {succ: boolean, converted?: any}{
+        const failed = {succ: false};
+        let types = this.fSrcType.get(edgeEnd.asKey())!;
+        // console.log("append type: ", edgeEnd.toString(), value);
+
+        // first source: may or may not be the first element of the tuple
+        if(types.length == 1){
+            let {match: matchD, rest: restD} = pyType.deriveType(types[types.length-1], value);
+            let matchW = typeof(value) == "string" ? pyType.convertTo(value, types[0]) : {succ: pyType.isSubType(value, types[0])}
+            // console.log(matchD, restD, matchW);
+            if(!matchW.succ && !restD)
+                return failed;
+            types.push(restD ? restD : new pyType.None());
+            this.fSrcIsTuple.set(edgeEnd.asKey(), matchW.succ);
+            return matchD ? matchD : matchW;
+        }
+        // must be one element in the tuple
+        else {
+            let {match: matchD, rest: restD} = pyType.deriveType(types[types.length-1], value);
+            if(!restD)
+                return failed;
+            types.push(restD);
+            return matchD ? matchD : {succ: true};
+        }
     }
 
     connectIn(source: Block, thisEdgeEnd: EdgeEndpoint, srcEdgeEnd?: EdgeEndpoint): boolean{
@@ -154,7 +171,7 @@ export class LayerBlock extends Block{
         if(source instanceof LiteralBlock){
             value = source.getText();
         }
-        else if(source instanceof LayerBlock){
+        else if(source instanceof TypedParamBlock){
             value = source.fTarType;
             if(value.typename == pyType.TUPLETYPE && srcEdgeEnd && srcEdgeEnd.slotIdx != ""){
                 value = (value as pyType.Tuple).inners[parseInt(srcEdgeEnd.slotIdx) - 1];
@@ -163,28 +180,16 @@ export class LayerBlock extends Block{
         else{
             return false;
         }
-        let types = this.fSrcType.get(thisEdgeEnd.asKey())!;
-        console.log("connect In: trying to fit", value, "into", types[types.length-1]);
-        let {match, rest} = pyType.deriveType(types[types.length-1], value, true);
-        if(types.length == 1){
-            let fullMatch = pyType.deriveType(types[0], value, false);
-            if(rest && fullMatch.rest)
-                rest = new pyType.Union([rest, fullMatch.rest]);
-            else if(!rest){
-                rest = fullMatch.rest;
-                match = fullMatch.match;
-            }
-        }
-        console.log("Derived result", rest);
-        if(rest){
-            types.push(rest);
+        let ret = this.appendType(thisEdgeEnd, value);
+        console.log("append result: ", ret);
+        if(ret.succ){
             if(source instanceof LiteralBlock){
-                source.converted = match?.converted;
+                source.updateConverted(ret);
                 source.addTar(source.defaultEdgeEnd, thisEdgeEnd);
                 this.addSrc(thisEdgeEnd, source.defaultEdgeEnd);
                 return true;
             }
-            else if(source instanceof LayerBlock && srcEdgeEnd){
+            else if(srcEdgeEnd){
                 source.addTar(srcEdgeEnd, thisEdgeEnd);
                 this.addSrc(thisEdgeEnd, srcEdgeEnd);
                 return true;
@@ -192,17 +197,86 @@ export class LayerBlock extends Block{
         }
         return false;
     }
+
+    gratherArgs(funcName: string): [string, EdgeEndpoint | EdgeEndpoint[]][]{
+        let ret = Array.from(this.fSrc.entries())
+                    .filter(([key, edges]) => EdgeEndpoint.fromKeyString(this, key).funcName == funcName && edges.length > 0)
+                    .map(([key, edges]) => {
+                        let encodedKey = EdgeEndpoint.fromKeyString(this, key);
+                        // console.log(key, encodedKey.toString(), edges.length, this.fSrcIsTuple.get(key))
+                        let edgVal = 
+                            (edges.length == 1 && this.fSrcIsTuple.get(key) == true) ? edges[0] : edges;
+                        
+                        return [encodedKey.paramName, edgVal] as [string, EdgeEndpoint | EdgeEndpoint[]];
+                    });
+        // console.log("gathered args of", funcName, ret);
+        return ret;
+    }
+
+    // abstract readyForGen(): boolean
 }
 
-export class FunctionBlock extends Block{
-
+export class LiteralBlock extends Block{
+    original: string;
+    converted: any = undefined;
+    constantType?: PythonType;
+    readonly defaultEdgeEnd;
+    constructor(_value: string){
+        super(Block.literalNodeType);
+        this.original = _value;
+        this.defaultEdgeEnd = new EdgeEndpoint(this.blockType, this.blockId, "fwd", "return", "");
+    }
+    getText(): string{
+        return (typeof(this.converted) == "undefined") ? this.original: String(this.converted);
+    }
+    updateConverted(upd: {converted?: any}){
+        if(typeof(upd.converted) != "undefined")
+            this.converted = upd.converted;
+    }
 }
 
-export class InputBlock extends Block{
-    constructor(){super(INPUTBLKID, INPUTBLKID);}
+export class LayerBlock extends TypedParamBlock{
+    fileInfo: FileModuleNode | FolderModuleNode;
+    blockClass: ClassInfo; 
+
+    constructor(id: string, info: ClassInfo, _fileInfo: FileModuleNode | FolderModuleNode){
+        super(info.name, id);
+        this.blockClass = info;
+        this.fileInfo = _fileInfo;
+
+        let initFunction = info.functions.find(f => f.name == "__init__");
+        if(initFunction)
+            this.addFunctionParams(initFunction, false);
+        let fwdFunction = info.functions.find(f => f.name == "forward");
+        if(fwdFunction)
+            this.addFunctionParams(fwdFunction, true);
+    }
 }
-export class OutputBlock extends Block{
-    constructor(){super(OUTPUTBLKID, OUTPUTBLKID);}
+
+export class FunctionBlock extends TypedParamBlock{
+    fileInfo: FileModuleNode | FolderModuleNode
+    blockFunc: FuncInfo;
+    
+    constructor(id: string, info: FuncInfo, _fileInfo: FileModuleNode | FolderModuleNode){
+        super(info.name, id);
+        this.blockFunc = info;
+        this.fileInfo = _fileInfo;
+        this.addFunctionParams(info, true);
+    }
+}
+
+export class InputBlock extends TypedParamBlock{
+    constructor(){
+        super(INPUTBLKID, INPUTBLKID);
+        this.fTarType = new pyType.Any();
+    }
+}
+export class OutputBlock extends TypedParamBlock{
+    static readonly inputSlot = new EdgeEndpoint(OUTPUTBLKID, OUTPUTBLKID, "fwd", "input", "");
+    constructor(){
+        super(OUTPUTBLKID, OUTPUTBLKID);
+        this.fSrcType.set(OutputBlock.inputSlot.asKey(), [new pyType.Any()]);
+    }
 }
 
 export class LayerGraph{
@@ -224,33 +298,23 @@ export class LayerGraph{
     }
 
     connectEdge(sourceEdgeEnd: string, targetEdgeEnd: string): {succ: boolean, msg: string}{
-        const sourceEnd = new EdgeEndpoint(sourceEdgeEnd);
-        const targetEnd = new EdgeEndpoint(targetEdgeEnd);
-        let onSucceed = () => {
-            this.graph.get(sourceEnd.nodeID)?.addTar(sourceEnd, targetEnd);
-            this.graph.get(targetEnd.nodeID)?.addSrc(targetEnd, sourceEnd);
-            return {succ: true, msg: ""};
-        }
-        if(sourceEnd.nodeID == INPUTBLKID || sourceEnd.nodeID == OUTPUTBLKID || targetEnd.nodeID == INPUTBLKID || targetEnd.nodeID == OUTPUTBLKID){
-            return onSucceed();
-        }
-        else{
-            let srcNode = this.graph.get(sourceEnd.nodeID)!;
-            let tarNode = this.graph.get(targetEnd.nodeID)!;
-            if(tarNode instanceof LayerBlock){
-                let succ = tarNode.connectIn(srcNode, targetEnd, sourceEnd);
-                if(succ)
-                    return {succ, msg: ""};
-                else 
-                    return {succ, msg: "type mismatch"};
-            }
+        const sourceEnd = EdgeEndpoint.fromEdgeEndString(sourceEdgeEnd);
+        const targetEnd = EdgeEndpoint.fromEdgeEndString(targetEdgeEnd);
+        let srcNode = this.graph.get(sourceEnd.nodeID)!;
+        let tarNode = this.graph.get(targetEnd.nodeID)!;
+        if(tarNode instanceof TypedParamBlock){
+            let succ = tarNode.connectIn(srcNode, targetEnd, sourceEnd);
+            if(succ)
+                return {succ, msg: ""};
             else 
-                return {succ: false, msg: "target node doesn't accept edges"};
+                return {succ, msg: "type mismatch"};
         }
+        else 
+            return {succ: false, msg: "target node doesn't accept edges"};
     }
 
     fillArg(edgeEnding: string, arg: string): {succ: boolean, msg: string}{
-        const targetEnd = new EdgeEndpoint(edgeEnding);
+        const targetEnd = EdgeEndpoint.fromEdgeEndString(edgeEnding);
         let newNode = new LiteralBlock(arg);
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof LayerBlock){
@@ -293,7 +357,7 @@ export class LayerGraph{
                 }
             }
         }
-        console.log("all nodes added");
+        // console.log("all nodes added");
         console.log(this.graph);
         for(let id of Object.keys(graph)){
             let blockInfo = graph[id];

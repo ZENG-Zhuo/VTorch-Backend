@@ -5,11 +5,11 @@
         "source": [],
         "target": [
             [
-                "input-input-fwd-return-1",
+                "input-input-fwd-return",
                 "Conv2d-node1-fwd-input-"
             ],
             [
-                "input-input-fwd-return-1",
+                "input-input-fwd-return",
                 "Identity-node3-fwd-input-"
             ]
         ]
@@ -19,7 +19,7 @@
         "literalParams": [],
         "source": [
             [
-                "output-output-fwd-input-",
+                "output-output-fwd-input",
                 "L1Loss-node4-fwd-return-"
             ]
         ],
@@ -29,31 +29,31 @@
         "name": "Conv2d",
         "literalParams": [
             [
-                "Conv2d-node1-ini-in_channels-",
+                "Conv2d-node1-ini-in_channels",
                 "1"
             ],
             [
-                "Conv2d-node1-ini-out_channels-",
+                "Conv2d-node1-ini-out_channels",
                 "1"
             ],
             [
-                "Conv2d-node1-ini-kernel_size-",
+                "Conv2d-node1-ini-kernel_size",
                 "1"
             ],
             [
-                "Conv2d-node1-ini-stride-",
+                "Conv2d-node1-ini-stride",
                 "1"
             ]
         ],
         "source": [
             [
-                "Conv2d-node1-fwd-input-",
+                "Conv2d-node1-fwd-input",
                 "input-input-fwd-return-1"
             ]
         ],
         "target": [
             [
-                "Conv2d-node1-fwd-return-",
+                "Conv2d-node1-fwd-return",
                 "AvgPool2d-node2-fwd-input-"
             ]
         ],
@@ -66,23 +66,23 @@
         "name": "AvgPool2d",
         "literalParams": [
             [
-                "AvgPool2d-node2-ini-kernel_size-",
+                "AvgPool2d-node2-ini-kernel_size",
                 "(1,1)"
             ],
             [
-                "AvgPool2d-node2-ini-ceil_mode-",
-                "true"
+                "AvgPool2d-node2-ini-ceil_mode",
+                "True"
             ]
         ],
         "source": [
             [
-                "AvgPool2d-node2-fwd-input-",
+                "AvgPool2d-node2-fwd-input",
                 "Conv2d-node1-fwd-return-"
             ]
         ],
         "target": [
             [
-                "AvgPool2d-node2-fwd-return-",
+                "AvgPool2d-node2-fwd-return",
                 "L1Loss-node4-fwd-input-"
             ]
         ],
@@ -96,13 +96,13 @@
         "literalParams": [],
         "source": [
             [
-                "Identity-node3-fwd-input-",
+                "Identity-node3-fwd-input",
                 "input-input-fwd-return-1"
             ]
         ],
         "target": [
             [
-                "Identity-node3-fwd-return-",
+                "Identity-node3-fwd-return",
                 "L1Loss-node4-fwd-target-"
             ]
         ],
@@ -116,17 +116,17 @@
         "literalParams": [],
         "source": [
             [
-                "L1Loss-node4-fwd-input-",
+                "L1Loss-node4-fwd-input",
                 "AvgPool2d-node2-fwd-return-"
             ],
             [
-                "L1Loss-node4-fwd-target-",
+                "L1Loss-node4-fwd-target",
                 "Identity-node3-fwd-return-"
             ]
         ],
         "target": [
             [
-                "L1Loss-node4-fwd-return-",
+                "L1Loss-node4-fwd-return",
                 "output-output-fwd-input-"
             ]
         ],

@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { Database } from "../src/common/objectStorage";
 
 Database.fromJSON(JSON.parse(readFileSync("response.json", 'utf-8')));
@@ -10,7 +10,11 @@ if (packageId){
 	if (nnId){
 		const nn = Database.getNode(nnId);
 		console.log(nn.relativePath);
-		const module = nn.getClass("Tanh")!;
+		const module = nn.getClass("Conv2d")!;
 		console.log(module.toString());
+		// const func = nn.functions;
+		// const funcs = Array.from(nn.importedFunctions.keys()).flatMap(x => nn.getFunction(x))
+		// console.log(func, funcs);
+		// writeFileSync("allFunctionsNN.txt", (func.join("\n") + "\n\n======imported=====\n\n" + funcs.join("\n")));
 	}
 }

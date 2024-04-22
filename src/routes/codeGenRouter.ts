@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { readFileSync, writeFileSync } from "fs";
 import { globalLayerGraph } from "../codeGen/graphBlock";
-import { genPython } from "../codeGen/pyCodeGen";
+import { genModelClass } from "../codeGen/pyCodeGen";
 
 export const codeGenRouter = Router();
 
@@ -99,7 +99,7 @@ codeGenRouter.post("/changeArgument", (req, res) => {
 
 codeGenRouter.get("/genPythonCode", (req, res) => {
 
-	let pythonCode = genPython(globalLayerGraph);
+	let pythonCode = genModelClass(globalLayerGraph, "MyModel");
 	const result = {
 		"succ": true,	//will check graph completeness in the future
 		"code": pythonCode,
