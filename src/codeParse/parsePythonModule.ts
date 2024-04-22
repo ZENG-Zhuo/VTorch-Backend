@@ -8,7 +8,7 @@ import {
     extractAllObjects,
     extractClassesAndFunctions,
 } from "./parsePythonObject";
-import { lstatSync, readFile } from "fs";
+import { existsSync, lstatSync, readFile } from "fs";
 import * as path from "path";
 import { globSync } from "glob";
 import { Database } from "../common/objectStorage";
@@ -106,8 +106,23 @@ export async function buildModuleTree(
             } else if (
                 lstatSync(fileName).isFile() &&
                 (fileName.endsWith(".py") || fileName.endsWith(".pyi"))
-                // !path.basename(fileName).startsWith("_")
             ) {
+                // If its pyi and py exists continue
+                if (
+                    fileName.endsWith("pyi") &&
+                    existsSync(
+                        path.join(
+                            path.dirname(fileName),
+                            `${getBasename(fileName)}.py`
+                        )
+                    )
+                ) {
+                    console.log(
+                        `Continuing because ${getBasename(fileName)}.py exists`
+                    );
+                    continue;
+                }
+
                 // If it's a Python module, add it as a child node
                 const child = await parsePythonFile(fileName, relativePath);
                 root.children.push(child);
