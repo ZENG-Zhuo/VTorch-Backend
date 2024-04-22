@@ -521,13 +521,11 @@ export function isSubType(srcType: PythonType, tarType: PythonType): boolean{
 }
 
 //only may unzip first level tuple when originType has length 1, i.e. originType = [Tuple(A, B, C)] => [B, C]
-export function deriveType(originType: PythonType | undefined, delta: string | PythonType, doUnzip: boolean): {match?: {succ: boolean, converted: any, actualType?: PythonType}, rest: PythonType | undefined}{
+export function deriveType(originType: PythonType | undefined, delta: string | PythonType): {match?: {succ: boolean, converted: any, actualType?: PythonType}, rest: PythonType | undefined}{
     const failed = {rest: undefined};
-    if(typeof(originType) == "undefined")
+    if(!originType)
         return failed;
     let convertAsAtomicType: ((org: PythonType) => {match?: {succ: boolean, converted: any, actualType?: PythonType}, rest: PythonType | undefined}) = (org) => {
-        if(doUnzip)
-            return failed;
         if(typeof(delta) == "string"){
             let whole = convertTo(delta, org);
             if(whole.succ){
@@ -545,33 +543,22 @@ export function deriveType(originType: PythonType | undefined, delta: string | P
     // console.log("deriving", originType, doUnzip);
     switch (originType.typename){
         case TUPLETYPE:{
-            if(doUnzip){
-                let inners = (originType as Tuple).inners;
-                let first = deriveType(inners[0], delta, false);
-                if(!first.rest || !nullable(first.rest))
-                    return failed;
-                let leftOver: PythonType[] = (inners[0].typename == VARIADIC) ? inners : inners.slice(1);
-                return {match: first.match, rest: leftOver.length > 0 ? new Tuple(leftOver) : new None()};
-            }
-            else {
-                return convertAsAtomicType(originType);
-            }
+            let inners = (originType as Tuple).inners;
+            if(inners.length == 0)
+                return failed;
+            let first = convertAsAtomicType(inners[0]);
+            if(!first.rest)
+                return failed;
+            let leftOver: PythonType[] = (inners[0].typename == VARIADIC) ? inners : inners.slice(1);
+            return {match: first.match, rest: new Tuple(leftOver)};
         }
         case OPTIONAL:{
             let inner = (originType as Optional).inner;
-            let innerResult = deriveType(inner, delta, doUnzip);
-            let noneResult = convertAsAtomicType(new None());
-            if(innerResult.rest && noneResult.rest)
-                return {match: innerResult.match, rest: new Union([innerResult.rest, noneResult.rest])}
-            else if(innerResult.rest)
-                return innerResult;
-            else if(noneResult)
-                return noneResult;
-            return failed;
+            return deriveType(inner, delta);
         }
         case UNIONTYPE: {
             let alters = (originType as Union).alters;
-            let innerResults = alters.map(x => deriveType(x, delta, doUnzip));
+            let innerResults = alters.map(x => deriveType(x, delta));
             let filterNotUndef = innerResults.map(({rest}) => rest).filter((x): x is PythonType => !!x);
             // console.log(filterNotUndef);
             if(filterNotUndef.length > 1)
@@ -585,18 +572,20 @@ export function deriveType(originType: PythonType | undefined, delta: string | P
             return {match: ret.match, rest: new Any()};
         }
         default:
-            return convertAsAtomicType(originType);
+            return failed;
     }
 }
 
 export function nullable(target: PythonType): boolean{
     switch(target.typename){
-        case OPTIONAL: return true;
-        case NONETYPE: return true;
         case UNIONTYPE:
             return (target as Union).alters.map(x => nullable(x)).reduce((x, y) => x || y, false);
-        case TUPLETYPE:
-            return (target as Tuple).inners[0].typename == VARIADIC;
+        case OPTIONAL:
+            return nullable((target as Optional).inner);
+        case TUPLETYPE:{
+            let tar = target as Tuple;
+            return tar.inners.length == 0 || tar.inners[0].typename == VARIADIC;
+        }
         default:
             return false;
     }
