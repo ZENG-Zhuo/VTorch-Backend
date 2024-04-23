@@ -227,11 +227,13 @@ export abstract class TypedParamBlock extends Block{
 
     checkFunctionReady(func: FuncInfo): boolean{
         let asKey = (paramName: string) => `${TypedParamBlock.funcNameMapping(func)}-${paramName}`;
-        return func.parameters.map(prm => 
+        let paramFilldStatus = func.parameters.map(prm => 
             this.fSrc.get(asKey(prm.name))!.length > 0 ?
                 this.checkParamReady(asKey(prm.name)) :
-                !!prm.initial_value
-        ).reduce((x, y) => x && y, true);
+                ((!!prm.initial_value) || prm.name == "self" || prm.power || prm.star) 
+        );
+        console.log(paramFilldStatus, func.parameters);
+        return paramFilldStatus.reduce((x, y) => x && y, true);
     }
 
     abstract readyForGen(): boolean
