@@ -102,7 +102,7 @@ abstract class Environment{
         else if(blk instanceof FunctionBlock){
             this.importManager.add(blk.fileInfo);
             let fwdArgs = this.edgesToArgs(blk.gratherArgs("fwd"));
-            let func = this.pathToFunc(blk.fileInfo.relativePath, blk.blockFunc.name);
+            let func = this.pathToFunc(blk.fileInfo.relativePath, blk.blockFunc.name.split("$")[0]);
             
             if(Array.from(blk.fTar.values()).flatMap(x => x).length <= 1){ // function is called only once
                 return ast.Call(func, fwdArgs);

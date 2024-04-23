@@ -1,7 +1,6 @@
-import { sourceMapsEnabled } from "process";
 import { Database } from "../common/objectStorage";
 import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
-import { ClassInfo, FuncInfo, TypeInfo } from "../common/pythonObjectTypes";
+import { ClassInfo, FuncInfo } from "../common/pythonObjectTypes";
 import { Package } from "../common/pythonPackageType";
 import { PythonType, toPythonType } from "./pythonTypes";
 import * as pyType from "./pythonTypes"; 
@@ -156,12 +155,13 @@ export abstract class TypedParamBlock extends Block{
         if(types.length == 1){
             let {match: matchD, rest: restD} = pyType.deriveType(types[types.length-1], value);
             let matchW = typeof(value) == "string" ? pyType.convertTo(value, types[0]) : {succ: pyType.isSubType(value, types[0])}
-            // console.log(matchD, restD, matchW);
-            if(!matchW.succ && !restD)
-                return failed;
+            console.log(matchD, restD, matchW);
+            if((!matchW.succ) && (!restD)){
+                console.log("failed");
+            }
             types.push(restD ? restD : new pyType.None());
             this.fSrcIsTuple.set(edgeEnd.asKey(), matchW.succ);
-            return matchD ? matchD : matchW;
+            return restD ? (matchD ? matchD : {succ: true}) : matchW;
         }
         // must be one element in the tuple
         else {
@@ -344,8 +344,10 @@ export class LayerGraph{
         this.torchPackage = Database.getPackage(packageId);
     }
 
-    addBlock(id: string, blockClass: ClassInfo, fileInfo: FileModuleNode | FolderModuleNode){
-        this.graph.set(id, new LayerBlock(id, blockClass, fileInfo));
+    addBlock(id: string, info: ClassInfo | FuncInfo, fileInfo: FileModuleNode | FolderModuleNode){
+        if(info instanceof ClassInfo)
+            this.graph.set(id, new LayerBlock(id, info, fileInfo));
+        else this.graph.set(id, new FunctionBlock(id, info, fileInfo));
         console.log(this.graph.get(id));
     }
 
@@ -355,7 +357,7 @@ export class LayerGraph{
         let srcNode = this.graph.get(sourceEnd.nodeID)!;
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof TypedParamBlock){
-            console.log(tarNode);
+            // console.log(tarNode);
             console.log(tarNode.blockId, tarNode.fSrcType);
             if(!tarNode.fSrc.has(targetEnd.asKey())){
                 console.log("cannot find slot " + targetEnd.asIDKey());
@@ -375,7 +377,7 @@ export class LayerGraph{
         const targetEnd = EdgeEndpoint.fromEdgeEndString(edgeEnding);
         let newNode = new LiteralBlock(arg);
         let tarNode = this.graph.get(targetEnd.nodeID)!;
-        if(tarNode instanceof LayerBlock){
+        if(tarNode instanceof TypedParamBlock){
             let ret = tarNode.connectIn(newNode, targetEnd);
             if(!tarNode.fSrc.has(targetEnd.asKey()))
                 return {succ: false, msg: "cannot find arg " + targetEnd.asIDKey()};
@@ -384,7 +386,7 @@ export class LayerGraph{
                 return {succ: true, msg: ""};
             }
         }
-        return {succ: false, msg: ""};
+        return {succ: false, msg: "block " + targetEnd.nodeID + " doesn't accept argument"};
     }
 
     addBlockByName(id: string, name: string, submodule: string[]): {succ: boolean, msg: string} {
@@ -406,12 +408,18 @@ export class LayerGraph{
             if(typeof(submoduleID) == "undefined")
                 return {succ: false, msg: "Cannot find submodule"};
             const thissubmodele = Database.getNode(submoduleID);
-            const classInfo = thissubmodele.getClass(name);
-            if(typeof(classInfo) == "undefined")
-                return {succ: false, msg: "Cannot find class"};
+            let info: FuncInfo | ClassInfo | undefined;
+            if(name.includes("$")) {
+                let splitted = name.split("$");
+                info = thissubmodele.getFunction(splitted[0]).at(parseInt(splitted[1])-1);
+            }
+            else
+                info = thissubmodele.getClass(name);
+            if(!info)
+                return {succ: false, msg: "Cannot find class/function " + name};
             if(this.graph.has(id))
                 return {succ: false, msg: "Block ID duplicated"};
-            this.addBlock(id, classInfo, thissubmodele);
+            this.addBlock(id, info, thissubmodele);
         }
         return {succ: true, msg: ""};
     }
