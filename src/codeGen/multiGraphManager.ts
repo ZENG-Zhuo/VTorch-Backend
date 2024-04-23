@@ -53,28 +53,55 @@ class NamedGraphs{
     constructor(){}
 
     createGraph(name: string){
-        this.graphs.set(name, new GraphWithPosition());
+        if(!this.graphs.has(name)){
+            this.graphs.set(name, new GraphWithPosition());
+            console.log("add graph", name);
+        }
     }
     replayGraph(name: string){
+        // console.log("replay graph", graphName);
+        if(!this.graphs.has(name)){
+            return {succ: false, msg: "cannot find graph " + name};
+        }
         return this.graphs.get(name)!.replayGraphConstruction();
     }
 
     addBlock(graphName: string, id: string, name: string, submodule: string[], position?: any){
+        console.log("Current graphs: ", this.graphs);
+        if(!this.graphs.has(graphName)){
+            return {succ: false, msg: "cannot find graph " + graphName};
+        }
         let ret = this.graphs.get(graphName)!.addBlockByName(id, name, submodule);
         if(ret.succ)
             this.graphs.get(graphName)!.position.set(id, position);
         return ret;
     }
     setPosition(graphName: string, id: string, position: any){
+        // console.log("set position in graph", graphName);
+        if(!this.graphs.has(graphName)){
+            return {succ: false, msg: "cannot find graph " + graphName};
+        }
         this.graphs.get(graphName)!.position.set(id, position);
     }
     setArg(graphName: string, target: string, value: string){
+        // console.log("set arg in graph", graphName);
+        if(!this.graphs.has(graphName)){
+            return {succ: false, msg: "cannot find graph " + graphName};
+        }
         return this.graphs.get(graphName)!.fillArg(target, value);
     }
     addEdge(graphName: string, source: string, target: string){
+        // console.log("add edge to graph", graphName);
+        if(!this.graphs.has(graphName)){
+            return {succ: false, msg: "cannot find graph " + graphName};
+        }
         return this.graphs.get(graphName)!.connectEdge(source, target);
     }
     genModelCode(graphName: string){
+        // console.log("gen code from graph", graphName);
+        if(!this.graphs.has(graphName)){
+            return {succ: false, msg: "cannot find graph " + graphName};
+        }
         let graph = this.graphs.get(graphName)!;
         let ready = graph.readyForGen();
         if(!ready.succ)

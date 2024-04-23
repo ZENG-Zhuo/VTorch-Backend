@@ -101,7 +101,7 @@ codeGenRouter.post("/changeArgument", (req, res) => {
 });
 
 // body: {"graphName": "MyModel"}
-codeGenRouter.get("/genPythonCode", (req, res) => {
+codeGenRouter.post("/genPythonCode", (req, res) => {
 	let graphName: string = req.body.graphName;
 	let pythonCode = allGraphs.genModelCode(graphName);
 	const result = {
@@ -116,9 +116,14 @@ codeGenRouter.get("/genPythonCode", (req, res) => {
 	else res.status(400).send(result.msg);	
 });
 
-codeGenRouter.get("/replayGraph", (req, res) => {
+codeGenRouter.post("/replayGraph", (req, res) => {
 	let graphName: string = req.body.graphName;
 	let replayed = allGraphs.replayGraph(graphName);
 	res.send(JSON.stringify(replayed));
+})
+codeGenRouter.post("/createGraph", (req, res) => {
+	let graphName: string = req.body.graphName;
+	let replayed = allGraphs.createGraph(graphName);
+	res.send();
 })
 

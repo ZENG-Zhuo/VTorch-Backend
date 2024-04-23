@@ -7,7 +7,6 @@ import * as pyType from "./pythonTypes";
 
 export const INPUTBLKID = "input";
 export const OUTPUTBLKID = "output";
-export const TARGETBLKID = "target";
 
 export class EdgeEndpoint{
     readonly nodeType: string
