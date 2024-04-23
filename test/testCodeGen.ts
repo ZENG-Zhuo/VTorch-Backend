@@ -79,6 +79,22 @@ function test2(){
 	console.log(printNode(genAll([testingGraph])));
 }
 
-test2();
+function test3(){
+    let testingGraph = new LayerGraph();
+    testingGraph.addBlockByName("node1", "input", []);
+    testingGraph.addBlockByName("node3", "output", []);
+    testingGraph.addBlockByName("node2", "Softmax", ["torch","nn"]);
+    
+	doAssert(testingGraph.connectEdge("input-node1-fwd-return-", "Softmax-node2-fwd-input-").succ);
+	doAssert(testingGraph.connectEdge("Softmax-node2-fwd-return-", "output-node3-fwd-input-").succ);
+    doAssert(testingGraph.readyForGen().succ);
+
+    
+    // doAssert(testingGraph.fillArg("Linear-node2-ini-in_features-", "123").succ);
+    // doAssert(testingGraph.fillArg("Linear-node2-ini-out_features-", "456").succ);
+	console.log(printNode(genAll([testingGraph])));
+}
+
+test3();
 
 console.log("all tests passed");
