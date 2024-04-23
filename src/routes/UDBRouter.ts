@@ -1,10 +1,9 @@
 import { Router } from "express";
 import { UDBData, UDBInfo } from "../common/UDBTypes";
 import { extractClassesAndFunctions } from "../codeParse/parsePythonObject";
-import { randomUUID } from "crypto";
 
 export const UDBRouter = Router();
-const UDBMap: Map<string, UDBInfo> = new Map();
+export const UDBMap: Map<string, UDBInfo> = new Map();
 
 UDBRouter.post("/addUDB", async (req, res) => {
     try {
@@ -18,7 +17,7 @@ UDBRouter.post("/addUDB", async (req, res) => {
         let returnMsg = "";
         let error = false;
         classes.map((c) => {
-            const initFunc = c.functions.find((f) => f.name === "__init__");
+            const initFunc = c.getFunctions("__init__").at(0);
             if (initFunc) {
                 initFunc.parameters.map((p, i) => {
                     if (i !== 0 && !p.type_hint) {
@@ -32,8 +31,9 @@ UDBRouter.post("/addUDB", async (req, res) => {
                     `Error: class ${c.name} has no init function!\n\r`
                 );
                 error = true;
+                return;
             }
-            const forwardFunc = c.functions.find((f) => f.name === "forward");
+            const forwardFunc = c.getFunctions("forward").at(0);
             if (forwardFunc) {
                 forwardFunc.parameters.map((p, i) => {
                     if (i !== 0 && !p.type_hint) {
