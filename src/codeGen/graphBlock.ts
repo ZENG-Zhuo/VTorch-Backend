@@ -279,6 +279,7 @@ export class LayerBlock extends TypedParamBlock{
     readyForGen(): boolean {
         let initFunction = this.blockClass.getFunctions("__init__").at(0);
         let forwardFunction = this.blockClass.getFunctions("forward").at(0);
+        console.log("checking readyCodegen ", this.blockId);
         return (!initFunction || this.checkFunctionReady(initFunction)) 
                 && (!forwardFunction || this.checkFunctionReady(forwardFunction));
     }
@@ -496,8 +497,9 @@ export class LayerGraph{
 
     readyForGen(): {succ: boolean, msg: string}{
         let srcEdgNum = new Map(Array.from(this.graph.entries()).map(
-            ([blkid, blkBody]) => [blkid, blkBody.fSrc.size])
+            ([blkid, blkBody]) => [blkid, Array.from(blkBody.fSrc.entries()).filter(([_, y]) => y.length > 0).length])
         );
+        console.log(srcEdgNum);
         let zeroSrcId = Array.from(srcEdgNum.entries()).filter(([_, y]) => y == 0).map(([x, _]) => x);
         let ret: string[] = [];
         // console.log(srcEdgNum);
@@ -505,6 +507,7 @@ export class LayerGraph{
             let id = zeroSrcId.pop()!;
             let blk = this.graph.get(id)!;
             ret.push(id);
+            console.log(id);
             Array.from(blk.fTar.entries()).forEach(([_, edges]) => 
                 edges.forEach(e => {
                     srcEdgNum.set(e.nodeID, (srcEdgNum.get(e.nodeID)!)-1);
@@ -512,6 +515,7 @@ export class LayerGraph{
                         zeroSrcId.push(e.nodeID);
                 }
             ));
+            console.log(srcEdgNum);
         }
         console.log(Array.from(this.graph.keys()));
         console.log(ret);

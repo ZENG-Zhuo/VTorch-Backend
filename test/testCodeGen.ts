@@ -63,6 +63,22 @@ function test(){
 	console.log(printNode(genTrainingClass("MyModel", "MyLoss")));
 }
 
-test();
+function test2(){
+    let testingGraph = new LayerGraph();
+    testingGraph.addBlockByName("node1", "input", []);
+    testingGraph.addBlockByName("node3", "output", []);
+    testingGraph.addBlockByName("node2", "Linear", ["torch","nn"]);
+    
+	doAssert(testingGraph.connectEdge("input-node1-fwd-return-", "Linear-node2-fwd-input-").succ);
+	doAssert(testingGraph.connectEdge("Linear-node2-fwd-return-", "output-node3-fwd-input-").succ);
+    doAssert(!testingGraph.readyForGen().succ);
+
+    
+    doAssert(testingGraph.fillArg("Linear-node2-ini-in_features-", "123").succ);
+    doAssert(testingGraph.fillArg("Linear-node2-ini-out_features-", "456").succ);
+	console.log(printNode(genAll([testingGraph])));
+}
+
+test2();
 
 console.log("all tests passed");
