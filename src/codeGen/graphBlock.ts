@@ -313,6 +313,8 @@ export class OutputBlock extends TypedParamBlock{
     constructor(blkId?: string){
         super(OUTPUTBLKID, blkId ? blkId : OUTPUTBLKID);
         this.fSrcType.set(OutputBlock.inputSlot.asKey(), [new pyType.Any()]);
+        this.fSrc.set(OutputBlock.inputSlot.asKey(), []);
+        this.fSrcIsTuple.set(OutputBlock.inputSlot.asKey(), false);
     }
     readyForGen(): boolean {
         return true;
@@ -508,6 +510,8 @@ export class LayerGraph{
                 }
             ));
         }
+        console.log(Array.from(this.graph.keys()));
+        console.log(ret);
         // console.log("topo sorted", ret);
         if(ret.length != this.graph.size)
             return {succ: false, msg: "Detects rings in the graph"};
