@@ -89,15 +89,11 @@ codeGenRouter.post("/changeArgument", (req, res) => {
 	let value: string = req.body.value;
 
 	// not implemented yet
-	const result = {
-		"succ": true,	
-		"msg": ""
-	};
-	
+	const result = allGraphs.setArg(graphName, target, value);
 	if(result.succ){
 		res.send("true");
 	}
-	else res.status(400).send(result.msg);	
+	else res.status(400).send(result.msg);
 });
 
 // body: {"graphName": "MyModel"}
