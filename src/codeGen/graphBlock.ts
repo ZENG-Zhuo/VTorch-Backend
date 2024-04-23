@@ -128,7 +128,8 @@ export abstract class TypedParamBlock extends Block{
     fTarType: PythonType = new pyType.Any();
 
     static funcNameMapping(func: FuncInfo): string{
-        return func.name == "__init__" ? "ini" : "fwd";
+        console.log("mapping funcname", func.name);
+        return func.name.slice(0, "__init__".length) == "__init__" ? "ini" : "fwd";
     }
 
     addFunctionParams(func: FuncInfo, isForward: boolean) {
@@ -347,8 +348,10 @@ export class LayerGraph{
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof TypedParamBlock){
             console.log(tarNode.blockId, tarNode.fSrcType);
-            if(!tarNode.fSrc.has(targetEnd.asKey()))
+            if(!tarNode.fSrc.has(targetEnd.asKey())){
+                console.log("cannot find slot " + targetEnd.asIDKey());
                 return {succ: false, msg: "cannot find slot " + targetEnd.asIDKey()};
+            }
             let succ = tarNode.connectIn(srcNode, targetEnd, sourceEnd);
             if(succ)
                 return {succ, msg: ""};
