@@ -1,0 +1,158 @@
+[
+    {
+        "op": "addBlock",
+        "body": {
+            "id": "input",
+            "name": "input",
+            "submodule": [],
+            "position": {
+                "x": 1,
+                "y": 1
+            }
+        }
+    },
+    {
+        "op": "addBlock",
+        "body": {
+            "id": "output",
+            "name": "output",
+            "submodule": [],
+            "position": {
+                "x": 2,
+                "y": 2
+            }
+        }
+    },
+    {
+        "op": "addBlock",
+        "body": {
+            "id": "node1",
+            "name": "Conv2d",
+            "submodule": [
+                "torch",
+                "nn"
+            ]
+        }
+    },
+    {
+        "op": "addBlock",
+        "body": {
+            "id": "node2",
+            "name": "Conv2d",
+            "submodule": [
+                "torch",
+                "nn"
+            ]
+        }
+    },
+    {
+        "op": "addBlock",
+        "body": {
+            "id": "node3",
+            "name": "Tanh",
+            "submodule": [
+                "torch",
+                "nn"
+            ]
+        }
+    },
+    {
+        "op": "addBlock",
+        "body": {
+            "id": "node4",
+            "name": "Tanh",
+            "submodule": [
+                "torch",
+                "nn"
+            ]
+        }
+    },
+    {
+        "op": "addBlock",
+        "body": {
+            "id": "node5",
+            "name": "Tanh",
+            "submodule": [
+                "torch",
+                "nn"
+            ]
+        }
+    },
+    {
+        "op": "addEdge",
+        "body": {
+            "source": "Tanh-node3-fwd-return-",
+            "target": "output-output-fwd-input-"
+        }
+    },
+    {
+        "op": "addEdge",
+        "body": {
+            "source": "Tanh-node4-fwd-return-",
+            "target": "output-output-fwd-input-"
+        }
+    },
+    {
+        "op": "addEdge",
+        "body": {
+            "source": "Tanh-node5-fwd-return-",
+            "target": "output-output-fwd-input-"
+        }
+    },
+    {
+        "op": "changeArgument",
+        "body": {
+            "target": "Conv2d-node1-ini-in_channels-",
+            "value": "123"
+        }
+    },
+    {
+        "op": "changeArgument",
+        "body": {
+            "target": "Conv2d-node1-ini-out_channels-",
+            "value": "456"
+        }
+    },
+    {
+        "op": "addEdge",
+        "body": {
+            "source": "input-input-fwd-return-",
+            "target": "Conv2d-node1-fwd-input-"
+        }
+    },
+    {
+        "op": "changeArgument",
+        "body": {
+            "target": "Conv2d-node2-ini-in_channels-",
+            "value": "789"
+        }
+    },
+    {
+        "op": "addEdge",
+        "body": {
+            "source": "Conv2d-node1-fwd-return-",
+            "target": "Conv2d-node2-fwd-input-"
+        }
+    },
+    {
+        "op": "addEdge",
+        "body": {
+            "source": "Conv2d-node2-fwd-return-",
+            "target": "Tanh-node3-fwd-input-"
+        }
+    },
+    {
+        "op": "addEdge",
+        "body": {
+            "source": "Conv2d-node1-fwd-return-",
+            "target": "Tanh-node4-fwd-input-"
+        }
+    },
+    {
+        "op": "addEdge",
+        "body": {
+            "source": "input-input-fwd-return-0",
+            "target": "Tanh-node5-fwd-input-"
+        }
+    }
+]

@@ -180,6 +180,8 @@ export function printTabbed(node: SyntaxNode, tabLevel: number, showTabs: Boolea
           : '')
       );
     case 'tuple':
+      if(node.items.length == 1)
+          return tabs + '(' + printNode(node.items[0]) + ",)";
       return tabs + '(' + commaSep(node.items) + ')';
     case 'unop':
       return tabs + node.op + '(' + printNode(node.operand) + ')';

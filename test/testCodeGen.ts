@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "fs";
 import { Database } from "../src/common/objectStorage";
 import { EdgeEndpoint, LayerBlock, LayerGraph } from "../src/codeGen/graphBlock";
 import { ClassInfo } from "../src/common/pythonObjectTypes";
-import { genModelClass, genTrainingClass } from "../src/codeGen/pyCodeGen";
+import { genAll, genModelClass, genTrainingClass } from "../src/codeGen/pyCodeGen";
 import { printNode } from "../src/codeGen/printNode";
 
 Database.fromJSON(JSON.parse(readFileSync("response.json", 'utf-8')));
@@ -35,6 +35,8 @@ function doAssert(value: any){
 
 function test(){
     let testingGraph = new LayerGraph();
+    testingGraph.addBlockByName("input", "input", []);
+    testingGraph.addBlockByName("output", "output", []);
     testingGraph.addBlockByName("node1", "Conv2d", ["torch","nn"]);
     testingGraph.addBlockByName("node2", "Conv2d", ["torch","nn"]);
     testingGraph.addBlockByName("node3", "Tanh", ["torch","nn"]);
@@ -56,7 +58,7 @@ function test(){
 	doAssert(testingGraph.connectEdge("input-input-fwd-return-0", "Tanh-node5-fwd-input-").succ);
 	doAssert(testingGraph.connectEdge("Tanh-node5-fwd-return-", "output-output-fwd-input-").succ);
 
-	console.log(printNode(genModelClass(testingGraph, "MyModel")));
+	console.log(printNode(genAll([testingGraph])));
 
 	console.log(printNode(genTrainingClass("MyModel", "MyLoss")));
 }
