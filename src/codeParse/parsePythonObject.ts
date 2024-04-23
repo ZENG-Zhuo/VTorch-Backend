@@ -101,7 +101,7 @@ function parseParamerters(
     const argslist = parametersContext.typedargslist();
     if (argslist == undefined) return [];
     let result = argslist.tfpdef().map(parseParamerterDef) || [];
-    if (argslist.COMMA().length < argslist.tfpdef.length) {
+    if (argslist.COMMA().length < argslist.tfpdef().length) {
         let pointer = result.length - 1;
         if (argslist.POWER()) {
             result[pointer].power = true;
@@ -126,7 +126,6 @@ function parseParamerters(
         result[resultLen - initialValueLen + i].initial_value =
             initialValues[i].text;
     }
-
     return result;
 }
 
