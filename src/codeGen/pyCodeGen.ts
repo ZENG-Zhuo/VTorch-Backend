@@ -18,7 +18,7 @@ class VarNameGenerator{
     reset() {this.x = 22;}
 }
 
-class PythonFunc{
+export class PythonFunc{
     params: ast.Name[] = [];
     body: SyntaxNode[] = [];
     retVals: SyntaxNode[] = [];
@@ -30,10 +30,13 @@ class PythonFunc{
     }
 }
 
-class ImportManager{
+export class ImportManager{
     importList: Set<string> = new Set();
     add(modul: FileModuleNode | FolderModuleNode){
         this.importList.add(modul.relativePath.join("."));
+    }
+    addAsStr(path: string){
+        this.importList.add(path);
     }
     toCode(): ast.Import[]{
         return Array.from(this.importList).map(str => ast.Import([{path: str, location: ""}]));
