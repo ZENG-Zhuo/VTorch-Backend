@@ -118,6 +118,9 @@ export abstract class Block{
             srcSlot.filter(edg => edg.nodeType != Block.literalNodeType)
         );
     }
+    outDegreeCount(): number{
+        return Array.from(this.fTar.values()).map(es => es.length).reduce((x, y) => x+y, 0);
+    }
     static readonly literalNodeType = "Literal";
 }
 
@@ -158,6 +161,7 @@ export abstract class TypedParamBlock extends Block{
             console.log(matchD, restD, matchW);
             if((!matchW.succ) && (!restD)){
                 console.log("failed");
+                return failed;
             }
             types.push(restD ? restD : new pyType.None());
             this.fSrcIsTuple.set(edgeEnd.asKey(), matchW.succ);
@@ -203,6 +207,28 @@ export abstract class TypedParamBlock extends Block{
             }
         }
         return false;
+    }
+
+    deleteEdge(source: Block, thisEdgeEnd: EdgeEndpoint, srcEdgeEnd?: EdgeEndpoint): boolean{
+        if(source instanceof LiteralBlock)
+            srcEdgeEnd = source.defaultEdgeEnd;
+        if(!srcEdgeEnd)
+            throw Error("src edge not provided");
+        let edges = this.fSrc.get(thisEdgeEnd.asKey());
+        if(!edges)
+            throw Error("Cannot find edgeend " + thisEdgeEnd.toString());
+        if(edges.length == 0)
+            throw Error("Node doesn't have in-degree edge");
+        if(!edges[edges.length-1].equals(srcEdgeEnd))
+            return false;
+        edges.pop();
+        this.fSrcType.get(thisEdgeEnd.asKey())!.pop();
+        if(edges.length == 0)
+            this.fSrcIsTuple.set(thisEdgeEnd.asKey(), false);
+        let srcTars = source.fTar.get(srcEdgeEnd.asKey())!;
+        let rmIdx = srcTars.findIndex(e => e.equals(thisEdgeEnd));
+        srcTars.splice(rmIdx, 1);
+        return true;
     }
 
     gratherArgs(funcName: string): [string, EdgeEndpoint | EdgeEndpoint[]][]{
@@ -373,17 +399,61 @@ export class LayerGraph{
             return {succ: false, msg: "target node doesn't accept edges"};
     }
 
-    fillArg(edgeEnding: string, arg: string): {succ: boolean, msg: string}{
+    removeEdge(sourceEdgeEnd: string, targetEdgeEnd: string): {succ: boolean, msg: string}{
+        console.log("removing edge ", sourceEdgeEnd, "to", targetEdgeEnd);
+        const sourceEnd = EdgeEndpoint.fromEdgeEndString(sourceEdgeEnd);
+        const targetEnd = EdgeEndpoint.fromEdgeEndString(targetEdgeEnd);
+        let srcNode = this.graph.get(sourceEnd.nodeID)!;
+        let tarNode = this.graph.get(targetEnd.nodeID)!;
+        if(tarNode instanceof TypedParamBlock){
+            let succ = tarNode.deleteEdge(srcNode, targetEnd, sourceEnd);
+            if(succ){
+                if(srcNode instanceof LiteralBlock && srcNode.outDegreeCount() == 0)
+                    this.removeNode(srcNode.blockId);
+                return {succ, msg: ""};
+            }
+            else
+                return {succ, msg: "edges must be removed in reverse order of adding them"};
+        }
+        else 
+            return {succ: false, msg: "target node doesn't accept edges"};
+    }
+
+    private clearSource(target: Block, key: string){
+        let thisSlot = EdgeEndpoint.fromKeyString(target, key);
+        target.fSrc.get(key)?.reverse().forEach(e => this.removeEdge(e.toString(), thisSlot.toString()));
+    }
+
+    removeNode(id: string): {succ: boolean, msg: string}{
+        console.log("removing node ", id);
+        if(!this.graph.has(id))
+            return {succ: false, msg: id + " not found"};
+        let target = this.graph.get(id)!;
+        if(target.outDegreeCount() > 0){
+            return {succ: false, msg: "please delete out-degree edges first"};
+        }
+        for(let [key, edges] of target.fSrc){
+            this.clearSource(target, key);
+        }
+        this.graph.delete(id);
+        return {succ: true, msg: ""};
+    }
+
+    updateArg(edgeEnding: string, arg: string): {succ: boolean, msg: string}{
         const targetEnd = EdgeEndpoint.fromEdgeEndString(edgeEnding);
         let newNode = new LiteralBlock(arg);
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof TypedParamBlock){
+            this.clearSource(tarNode, targetEnd.asKey());
             let ret = tarNode.connectIn(newNode, targetEnd);
             if(!tarNode.fSrc.has(targetEnd.asKey()))
                 return {succ: false, msg: "cannot find arg " + targetEnd.asIDKey()};
             if(ret){
                 this.graph.set(newNode.blockId, newNode);
                 return {succ: true, msg: ""};
+            }
+            else {
+                return {succ: false, msg: "argument rejected"};
             }
         }
         return {succ: false, msg: "block " + targetEnd.nodeID + " doesn't accept argument"};
@@ -451,7 +521,7 @@ export class LayerGraph{
             let blockInfo = graph[id];
             let params = blockInfo.literalParams;
             for(let [name, value] of params){
-                let result = this.fillArg(name, value);
+                let result = this.updateArg(name, value);
                 if(result.succ){
                     console.log("setting param", name, " succeed");
                 }

@@ -28,12 +28,12 @@ function addBlock(graph: LayerGraph, id: string, name: string, path: string[]){
 }
 
 function doAssert(value: {succ: boolean, msg: string}, inverse: boolean = false){
-    if(value.succ || inverse)
+    if(value.succ !== inverse)
         return ;
     throw new Error("assertion failed. Msg: " + value.msg);
 }
 
-function test(){
+function test1(){
     let testingGraph = new LayerGraph();
     testingGraph.addBlockByName("input", "input", []);
     testingGraph.addBlockByName("output", "output", []);
@@ -41,9 +41,9 @@ function test(){
     testingGraph.addBlockByName("node2", "Conv2d", ["torch","nn"]);
     testingGraph.addBlockByName("node3", "Tanh", ["torch","nn"]);
 
-    doAssert(testingGraph.fillArg("Conv2d-node1-ini-in_channels-", "123"));
-    doAssert(testingGraph.fillArg("Conv2d-node1-ini-out_channels-", "456"));
-    doAssert(testingGraph.fillArg("Conv2d-node2-ini-in_channels-", "789"));
+    doAssert(testingGraph.updateArg("Conv2d-node1-ini-in_channels-", "123"));
+    doAssert(testingGraph.updateArg("Conv2d-node1-ini-out_channels-", "456"));
+    doAssert(testingGraph.updateArg("Conv2d-node2-ini-in_channels-", "789"));
 
 	doAssert(testingGraph.connectEdge("input-input-fwd-return-", "Conv2d-node1-fwd-input-"));
 	doAssert(testingGraph.connectEdge("Conv2d-node1-fwd-return-", "Conv2d-node2-fwd-input-"));
@@ -74,8 +74,8 @@ function test2(){
     doAssert(testingGraph.readyForGen(), true);
 
     
-    doAssert(testingGraph.fillArg("Linear-node2-ini-in_features-", "123"));
-    doAssert(testingGraph.fillArg("Linear-node2-ini-out_features-", "456"));
+    doAssert(testingGraph.updateArg("Linear-node2-ini-in_features-", "123"));
+    doAssert(testingGraph.updateArg("Linear-node2-ini-out_features-", "456"));
 	console.log(printNode(genAll([testingGraph])));
 }
 
