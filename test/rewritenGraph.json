@@ -48,7 +48,7 @@
         "source": [
             [
                 "Conv2d-node1-fwd-input-",
-                "input-input-fwd-return-1"
+                "input-input-fwd-return-0"
             ]
         ],
         "target": [

@@ -1,5 +1,5 @@
 import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
-import { LayerGraph, Block, INPUTBLKID, OUTPUTBLKID, LayerBlock, LiteralBlock, EdgeEndpoint, InputBlock, OutputBlock, FunctionBlock } from "./graphBlock";
+import { LayerGraph, Block, INPUTBLKID, OUTPUTBLKID, LayerBlock, LiteralBlock, EdgeEndpoint, OutputBlock, FunctionBlock} from "./graphBlock";
 import { SyntaxNode } from "./python_ast";
 import * as ast from "./python_ast";
 
@@ -34,6 +34,9 @@ class ImportManager{
     importList: Set<string> = new Set();
     add(modul: FileModuleNode | FolderModuleNode){
         this.importList.add(modul.relativePath.join("."));
+    }
+    toCode(): ast.Import[]{
+        return Array.from(this.importList).map(str => ast.Import([{path: str, location: ""}]));
     }
 }
 
@@ -174,23 +177,22 @@ class ForwardEnv extends Environment{
     }
 }
 
-function transformDataflow(graph: LayerGraph, imports: ImportManager, startFrom: Block, endingAt: Block) {
+function transformDataflow(graph: LayerGraph, imports: ImportManager, startFrom: Block[], endingAt: Block[]) {
     const forwardFunc = new PythonFunc();
     const initFunc = new PythonFunc();
     initFunc.body.push(ast.Call(ast.Dot(ast.Call(ast.Name("super"), []), "__init__"), []));
     const classEnv = new ClassEnv(initFunc, graph, imports);
     const forwardEnv = new ForwardEnv(forwardFunc, graph, imports, classEnv);
 
-    forwardEnv.setAsParam(startFrom);
-    forwardEnv.setAsReturn(endingAt);
+    startFrom.forEach(blk => forwardEnv.setAsParam(blk));
+    endingAt.forEach(blk => forwardEnv.setAsReturn(blk));
 
     return {init: initFunc.toFuncDef("__init__", true), forward: forwardFunc.toFuncDef("forward", true)};
 }
 
-export function genModelClass(graph: LayerGraph, modelName: string){
-    let imports = new ImportManager();
-    let {init, forward} = transformDataflow(graph, imports, graph.inputBlock, graph.outputBlock);
-    const classDef = ast.Class(modelName + "_layers", [ast.Dot(ast.Dot(ast.Name("torch"), "nn"), "Module")], [
+export function genModelClass(graph: LayerGraph, imports: ImportManager){
+    let {init, forward} = transformDataflow(graph, imports, graph.inputBlocks, graph.outputBlocks);
+    const classDef = ast.Class(graph.name, [ast.Dot(ast.Dot(ast.Name("torch"), "nn"), "Module")], [
         init, 
         forward
     ]);
@@ -248,4 +250,10 @@ export function genTrainingClass(modelName: string, lossName: string){
         initFunc.toFuncDef("__init__", true),
         trainFunc.toFuncDef("train", true)
     ]);
+}
+
+export function genAll(graphs: LayerGraph[]): SyntaxNode{
+    let imports = new ImportManager();
+    let graphClasses = graphs.map(g => genModelClass(g, imports));
+    return ast.Module([...imports.toCode(), ...graphClasses]);
 }

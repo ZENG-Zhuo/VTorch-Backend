@@ -7,6 +7,7 @@ import * as pyType from "./pythonTypes";
 
 export const INPUTBLKID = "input";
 export const OUTPUTBLKID = "output";
+export const TARGETBLKID = "target";
 
 export class EdgeEndpoint{
     readonly nodeType: string
@@ -45,6 +46,9 @@ export class EdgeEndpoint{
     }
     toString(): string{
         return this.nodeType + "-" + this.nodeID + "-" + this.funcName + "-" + this.paramName + "-" + this.slotIdx;
+    }
+    equals(tar: EdgeEndpoint): boolean{
+        return this.toString() == tar.toString();
     }
 }
 
@@ -213,7 +217,21 @@ export abstract class TypedParamBlock extends Block{
         return ret;
     }
 
-    // abstract readyForGen(): boolean
+    checkParamReady(key: string){
+        let argTypes = this.fSrcType.get(key)!;
+        return pyType.nullable(argTypes[argTypes.length - 1]) || (this.fSrc.get(key)!.length == 1 && this.fSrcIsTuple.get(key)!);
+    }
+
+    checkFunctionReady(func: FuncInfo): boolean{
+        let asKey = (paramName: string) => `${TypedParamBlock.funcNameMapping(func)}-${paramName}`;
+        return func.parameters.map(prm => 
+            this.fSrc.get(asKey(prm.name))!.length > 0 ?
+                this.checkParamReady(asKey(prm.name)) :
+                !!prm.initial_value
+        ).reduce((x, y) => x && y, true);
+    }
+
+    abstract readyForGen(): boolean
 }
 
 export class LiteralBlock extends Block{
@@ -251,6 +269,13 @@ export class LayerBlock extends TypedParamBlock{
         if(fwdFunction)
             this.addFunctionParams(fwdFunction, true);
     }
+
+    readyForGen(): boolean {
+        let initFunction = this.blockClass.functions.find(f => f.name == "__init__");
+        let forwardFunction = this.blockClass.functions.find(f => f.name == "forward");
+        return (!initFunction || this.checkFunctionReady(initFunction)) 
+                && (!forwardFunction || this.checkFunctionReady(forwardFunction));
+    }
 }
 
 export class FunctionBlock extends TypedParamBlock{
@@ -263,27 +288,42 @@ export class FunctionBlock extends TypedParamBlock{
         this.fileInfo = _fileInfo;
         this.addFunctionParams(info, true);
     }
+    readyForGen(): boolean {
+        return this.checkFunctionReady(this.blockFunc);
+    }
 }
 
 export class InputBlock extends TypedParamBlock{
-    constructor(){
-        super(INPUTBLKID, INPUTBLKID);
+    constructor(blkId?: string){
+        super(INPUTBLKID, blkId ? blkId : INPUTBLKID);
         this.fTarType = new pyType.Any();
     }
+    readyForGen(): boolean {
+        return true;
+    }
 }
+
 export class OutputBlock extends TypedParamBlock{
     static readonly inputSlot = new EdgeEndpoint(OUTPUTBLKID, OUTPUTBLKID, "fwd", "input", "");
-    constructor(){
-        super(OUTPUTBLKID, OUTPUTBLKID);
+    constructor(blkId?: string){
+        super(OUTPUTBLKID, blkId ? blkId : OUTPUTBLKID);
         this.fSrcType.set(OutputBlock.inputSlot.asKey(), [new pyType.Any()]);
+    }
+    readyForGen(): boolean {
+        return true;
     }
 }
 
 export class LayerGraph{
-    inputBlock = new InputBlock();
-    outputBlock = new OutputBlock();
-    graph: Map<string, Block> = new Map([[INPUTBLKID, this.inputBlock], [OUTPUTBLKID, this.outputBlock]]);
+    inputBlocks: InputBlock[] = [];
+    outputBlocks: OutputBlock[] = [];
+    graph: Map<string, Block> = new Map();
     torchPackage?: Package;
+    name: string;
+
+    constructor(graphName: string = "MyModel"){
+        this.name = graphName;
+    }
 
     get(x: string) {return this.graph.get(x);}
     entries() {return this.graph.entries();}
@@ -330,31 +370,51 @@ export class LayerGraph{
     addBlockByName(id: string, name: string, submodule: string[]): {succ: boolean, msg: string} {
         if(!this.torchPackage)
             this.initTorchPackage();
-        console.log(id, name, submodule);
-        const submoduleID = this.torchPackage!.getSubModule(submodule, false);
-        if(typeof(submoduleID) == "undefined")
-            return {succ: false, msg: "Cannot find submodule"};
-        const thissubmodele = Database.getNode(submoduleID);
-        const classInfo = thissubmodele.getClass(name);
-        if(typeof(classInfo) == "undefined")
-            return {succ: false, msg: "Cannot find class"};
-        if(this.graph.has(id))
-            return {succ: false, msg: "Block ID duplicated"};
-        this.addBlock(id, classInfo, thissubmodele);
+        if(name == INPUTBLKID){
+            let newBlock = new InputBlock(id);
+            this.inputBlocks.push(newBlock);
+            this.graph.set(id, newBlock);
+        }
+        else if(name == OUTPUTBLKID){
+            let newBlock = new OutputBlock(id);
+            this.outputBlocks.push(newBlock);
+            this.graph.set(id, newBlock);
+        }
+        else {
+            console.log(id, name, submodule);
+            const submoduleID = this.torchPackage!.getSubModule(submodule, false);
+            if(typeof(submoduleID) == "undefined")
+                return {succ: false, msg: "Cannot find submodule"};
+            const thissubmodele = Database.getNode(submoduleID);
+            const classInfo = thissubmodele.getClass(name);
+            if(typeof(classInfo) == "undefined")
+                return {succ: false, msg: "Cannot find class"};
+            if(this.graph.has(id))
+                return {succ: false, msg: "Block ID duplicated"};
+            this.addBlock(id, classInfo, thissubmodele);
+        }
         return {succ: true, msg: ""};
     }
 
     initFromJSON(jsonObj: any){
         let graph: GraphJSON = jsonObj;
         for(let id of Object.keys(graph)){
-            if(id == INPUTBLKID || id == OUTPUTBLKID)
-                continue;
             let blockInfo = graph[id];
             if(blockInfo.submodule){
                 let ret = this.addBlockByName(id, blockInfo.name, blockInfo.submodule);
                 if(!ret.succ){
-                    console.error("add " + id + "failed", ret.msg);
+                    throw new Error("add " + id + "failed " + ret.msg);
                 }
+            }
+            else if(blockInfo.name == INPUTBLKID){
+                let newInput = new InputBlock(id);
+                this.inputBlocks.push(newInput);
+                this.graph.set(id, newInput);
+            }
+            else if(blockInfo.name == OUTPUTBLKID){
+                let newOutput = new OutputBlock(id);
+                this.outputBlocks.push(newOutput);
+                this.graph.set(id, newOutput);
             }
         }
         // console.log("all nodes added");
@@ -368,7 +428,7 @@ export class LayerGraph{
                     console.log("setting param", name, " succeed");
                 }
                 else {
-                    console.error("setting param", name, "=", value, "failed", result.msg)
+                    throw new Error("setting param " + name + " = " + value + " failed " + result.msg)
                 }
             }
             console.log("all params added in ", id);
@@ -381,7 +441,7 @@ export class LayerGraph{
                     console.log("edge setup succeed");
                 }
                 else {
-                    console.error(ret.msg);
+                    throw new Error(ret.msg);
                 }
             }
             console.log("all edges add in ", id);
@@ -393,7 +453,7 @@ export class LayerGraph{
         for(let [id, block] of this.graph){
             if(block instanceof LiteralBlock)
                 continue;
-            else if(block instanceof LayerBlock){
+            else if(block instanceof TypedParamBlock){
                 let literalParams = Array.from(block.fSrc.entries()).flatMap(([key, srcSlot]) => 
                     srcSlot.filter(edg => edg.nodeType == Block.literalNodeType)
                         .map(edg => [
@@ -403,7 +463,10 @@ export class LayerGraph{
                         )
                 );
                 let body = block.encodeNoneLitEdge();
-                body.submodule = block.fileInfo.relativePath;
+                body.submodule = (block instanceof LayerBlock ? block.fileInfo.relativePath : 
+                                    block instanceof FunctionBlock ? block.fileInfo.relativePath :
+                                    undefined
+                );
                 body.literalParams = literalParams;
                 ret[block.blockId] = body;
             }
@@ -413,6 +476,37 @@ export class LayerGraph{
         }
         return ret;
     }
-}
 
-export const globalLayerGraph = new LayerGraph();
+    readyForGen(): {succ: boolean, msg: string}{
+        let srcEdgNum = new Map(Array.from(this.graph.entries()).map(
+            ([blkid, blkBody]) => [blkid, blkBody.fSrc.size])
+        );
+        let zeroSrcId = Array.from(srcEdgNum.entries()).filter(([_, y]) => y == 0).map(([x, _]) => x);
+        let ret: string[] = [];
+        // console.log(srcEdgNum);
+        while(zeroSrcId.length > 0){
+            let id = zeroSrcId.pop()!;
+            let blk = this.graph.get(id)!;
+            ret.push(id);
+            Array.from(blk.fTar.entries()).forEach(([_, edges]) => 
+                edges.forEach(e => {
+                    srcEdgNum.set(e.nodeID, (srcEdgNum.get(e.nodeID)!)-1);
+                    if(srcEdgNum.get(e.nodeID) == 0)
+                        zeroSrcId.push(e.nodeID);
+                }
+            ));
+        }
+        // console.log("topo sorted", ret);
+        if(ret.length != this.graph.size)
+            return {succ: false, msg: "Detects rings in the graph"};
+
+
+        for(let [id, blk] of this.graph.entries())
+            if(blk instanceof LiteralBlock)
+                continue;
+            else if(blk instanceof TypedParamBlock)
+                if(!blk.readyForGen())
+                    return {succ: false, msg: `Node ${id} does not have enough arguments`};
+        return {succ: true, msg: ""};
+    }
+}
