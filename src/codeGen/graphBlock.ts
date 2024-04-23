@@ -263,10 +263,10 @@ export class LayerBlock extends TypedParamBlock{
         this.blockClass = info;
         this.fileInfo = _fileInfo;
         // console.log("info: ", info.functions);
-        let initFunction = info.functions.find(f => f.name == "__init__");
+        let initFunction = info.getFunctions("__init__").at(0);
         if(initFunction)
             this.addFunctionParams(initFunction, false);
-        let fwdFunction = info.functions.find(f => f.name == "forward");
+        let fwdFunction = info.getFunctions("forward").at(0);
         if(fwdFunction){
             // console.log("adding forward", fwdFunction);
             this.addFunctionParams(fwdFunction, true);
@@ -274,8 +274,8 @@ export class LayerBlock extends TypedParamBlock{
     }
 
     readyForGen(): boolean {
-        let initFunction = this.blockClass.functions.find(f => f.name == "__init__");
-        let forwardFunction = this.blockClass.functions.find(f => f.name == "forward");
+        let initFunction = this.blockClass.getFunctions("__init__").at(0);
+        let forwardFunction = this.blockClass.getFunctions("forward").at(0);
         return (!initFunction || this.checkFunctionReady(initFunction)) 
                 && (!forwardFunction || this.checkFunctionReady(forwardFunction));
     }
