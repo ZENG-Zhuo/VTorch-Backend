@@ -1,4 +1,5 @@
 import { EdgeEndpoint, FunctionBlock, LayerBlock, LayerGraph, LiteralBlock } from "./graphBlock";
+import { printNode } from "./printNode";
 import { genAll, genModelClass } from "./pyCodeGen";
 
 interface Operation{
@@ -108,7 +109,7 @@ class NamedGraphs{
         let ready = graph.readyForGen();
         if(!ready.succ)
             return ready;
-        return {succ: true, code: genAll([graph])};
+        return {succ: true, code: printNode(genAll([graph]))};
     }
 }
 
