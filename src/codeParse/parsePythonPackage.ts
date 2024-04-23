@@ -85,9 +85,10 @@ function parseImportInfo(
                             ]);
                     });
                     importSourceNode.functions.map((funcInfo) => {
-                        if (checkValid(funcInfo.name))
-                            node.importedFunctions.set(funcInfo.name, [
-                                funcInfo.name,
+                        const funcName = funcInfo.name.split("$")[0];
+                        if (checkValid(funcName))
+                            node.importedFunctions.set(funcName, [
+                                funcName,
                                 importSourceNodeId,
                             ]);
                     });
@@ -138,7 +139,7 @@ function parseImportInfo(
                             funcName = importee[0];
                             alias = importee[1];
                         }
-                        return funcName === funcInfo.name;
+                        return funcInfo.name.startsWith(funcName + "$");
                     });
                     if (index >= 0) {
                         console.log("settting func:", alias, funcName);
