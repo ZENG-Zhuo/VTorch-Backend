@@ -1,3 +1,4 @@
+import { sourceMapsEnabled } from "process";
 import { Database } from "../common/objectStorage";
 import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
 import { ClassInfo, FuncInfo, TypeInfo } from "../common/pythonObjectTypes";
@@ -143,7 +144,7 @@ export abstract class TypedParamBlock extends Block{
         if(isForward){
             this.fTarType = toPythonType(func.return_type ? func.return_type : undefined);
         }
-        console.log(this.fSrcType);
+        console.log("in add func param ", this.fSrcType);
     }
 
     appendType(edgeEnd: EdgeEndpoint, value: PythonType | string): {succ: boolean, converted?: any}{
@@ -272,6 +273,7 @@ export class LayerBlock extends TypedParamBlock{
             // console.log("adding forward", fwdFunction);
             this.addFunctionParams(fwdFunction, true);
         }
+        console.log("after calling addFuncParams", this.fSrcType);
     }
 
     readyForGen(): boolean {
@@ -312,6 +314,8 @@ export class OutputBlock extends TypedParamBlock{
     constructor(blkId?: string){
         super(OUTPUTBLKID, blkId ? blkId : OUTPUTBLKID);
         this.fSrcType.set(OutputBlock.inputSlot.asKey(), [new pyType.Any()]);
+        this.fSrc.set(OutputBlock.inputSlot.asKey(), []);
+        this.fSrcIsTuple.set(OutputBlock.inputSlot.asKey(), false);
     }
     readyForGen(): boolean {
         return true;
@@ -339,6 +343,7 @@ export class LayerGraph{
 
     addBlock(id: string, blockClass: ClassInfo, fileInfo: FileModuleNode | FolderModuleNode){
         this.graph.set(id, new LayerBlock(id, blockClass, fileInfo));
+        console.log(this.graph.get(id));
     }
 
     connectEdge(sourceEdgeEnd: string, targetEdgeEnd: string): {succ: boolean, msg: string}{
@@ -347,6 +352,7 @@ export class LayerGraph{
         let srcNode = this.graph.get(sourceEnd.nodeID)!;
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof TypedParamBlock){
+            console.log(tarNode);
             console.log(tarNode.blockId, tarNode.fSrcType);
             if(!tarNode.fSrc.has(targetEnd.asKey())){
                 console.log("cannot find slot " + targetEnd.asIDKey());
@@ -507,6 +513,8 @@ export class LayerGraph{
                 }
             ));
         }
+        console.log(Array.from(this.graph.keys()));
+        console.log(ret);
         // console.log("topo sorted", ret);
         if(ret.length != this.graph.size)
             return {succ: false, msg: "Detects rings in the graph"};
