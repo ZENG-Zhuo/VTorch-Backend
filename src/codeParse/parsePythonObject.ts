@@ -262,7 +262,19 @@ export function extractClassesAndFunctions(
             classes.push(parseClassDef(classDef, moduleID));
         },
         visitFuncdef: (funcDef) => {
-            functions.push(parseFuncDef(funcDef));
+            const parsedFunction = parseFuncDef(funcDef);
+            let i: number = 1;
+            while (true) {
+                if (
+                    !functions.find(
+                        (f) => f.name === parsedFunction.name + "$" + String(i)
+                    )
+                )
+                    break;
+                i++;
+            }
+            parsedFunction.name = parsedFunction.name + "$" + String(i);
+            functions.push(parsedFunction);
         },
     }).visit(tree);
 
