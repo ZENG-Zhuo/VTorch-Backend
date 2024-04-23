@@ -95,7 +95,9 @@ class NamedGraphs{
         if(!this.graphs.has(graphName)){
             return {succ: false, msg: "cannot find graph " + graphName};
         }
-        return this.graphs.get(graphName)!.connectEdge(source, target);
+        let ret = this.graphs.get(graphName)!.connectEdge(source, target);
+        console.log(ret.msg);
+        return ret;
     }
     genModelCode(graphName: string){
         // console.log("gen code from graph", graphName);

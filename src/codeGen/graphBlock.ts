@@ -134,6 +134,7 @@ export abstract class TypedParamBlock extends Block{
     addFunctionParams(func: FuncInfo, isForward: boolean) {
         let funcName = TypedParamBlock.funcNameMapping(func);
         func.parameters.forEach(param => {
+            console.log("setting", funcName + '-' + param.name, "at", this.blockId);
             this.fSrcType.set(funcName + '-' + param.name, [toPythonType(param.type_hint)]);
             this.fSrcIsTuple.set(funcName + '-' + param.name, false);
             this.fSrc.set(funcName + '-' + param.name, []);
@@ -141,6 +142,7 @@ export abstract class TypedParamBlock extends Block{
         if(isForward){
             this.fTarType = toPythonType(func.return_type ? func.return_type : undefined);
         }
+        console.log(this.fSrcType);
     }
 
     appendType(edgeEnd: EdgeEndpoint, value: PythonType | string): {succ: boolean, converted?: any}{
@@ -260,13 +262,15 @@ export class LayerBlock extends TypedParamBlock{
         super(info.name, id);
         this.blockClass = info;
         this.fileInfo = _fileInfo;
-
+        // console.log("info: ", info.functions);
         let initFunction = info.functions.find(f => f.name == "__init__");
         if(initFunction)
             this.addFunctionParams(initFunction, false);
         let fwdFunction = info.functions.find(f => f.name == "forward");
-        if(fwdFunction)
+        if(fwdFunction){
+            // console.log("adding forward", fwdFunction);
             this.addFunctionParams(fwdFunction, true);
+        }
     }
 
     readyForGen(): boolean {
@@ -342,6 +346,9 @@ export class LayerGraph{
         let srcNode = this.graph.get(sourceEnd.nodeID)!;
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof TypedParamBlock){
+            console.log(tarNode.blockId, tarNode.fSrcType);
+            if(!tarNode.fSrc.has(targetEnd.asKey()))
+                return {succ: false, msg: "cannot find slot " + targetEnd.asIDKey()};
             let succ = tarNode.connectIn(srcNode, targetEnd, sourceEnd);
             if(succ)
                 return {succ, msg: ""};
@@ -358,6 +365,8 @@ export class LayerGraph{
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof LayerBlock){
             let ret = tarNode.connectIn(newNode, targetEnd);
+            if(!tarNode.fSrc.has(targetEnd.asKey()))
+                return {succ: false, msg: "cannot find arg " + targetEnd.asIDKey()};
             if(ret){
                 this.graph.set(newNode.blockId, newNode);
                 return {succ: true, msg: ""};
