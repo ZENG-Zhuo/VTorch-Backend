@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "fs";
 import { Database } from "../src/common/objectStorage";
 import { EdgeEndpoint, LayerBlock, LayerGraph } from "../src/codeGen/graphBlock";
+import {allGraphs} from "../src/codeGen/multiGraphManager"
 import { ClassInfo } from "../src/common/pythonObjectTypes";
 
 Database.fromJSON(JSON.parse(readFileSync("response.json", 'utf-8')));
@@ -57,6 +58,21 @@ function test(){
     doAssert(!testingGraph.fillArg("Conv2d-node1-ini-padding-", "123").succ);
 }
 
-test();
+function test2(){
+    let testingGraph = new LayerGraph();
+    doAssert(testingGraph.addBlockByName("node1", "input", []).succ);
+    doAssert(testingGraph.addBlockByName("node2", "Bilinear", ["torch", "nn"]).succ);
+    doAssert(testingGraph.connectEdge("input-node1-fwd-return-1", "Bilinear-node2-fwd-input1-1").succ);
+}
+
+function test3(){
+    let graphName = "myGraph";
+    allGraphs.createGraph(graphName);
+    doAssert(allGraphs.addBlock(graphName, "node1", "Bilinear", ["torch", "nn"]).succ);
+    doAssert(allGraphs.addBlock(graphName, "node2", "input", []).succ);
+    doAssert(allGraphs.addEdge(graphName, "input-node2-fwd-return", "Bilinear-node1-fwd-input1-0").succ);
+}
+
+test3();
 
 console.log("all tests passed");
