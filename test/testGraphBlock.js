@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const fs_1 = require("fs");
+const graphBlock_1 = require("../src/codeGen/graphBlock");
+const objectStorage_1 = require("../src/common/objectStorage");
+objectStorage_1.Database.fromJSON(JSON.parse((0, fs_1.readFileSync)("response.json", 'utf-8')));
+const graph = new graphBlock_1.LayerGraph();
+// graph.initFromJSON(JSON.parse(readFileSync("graph.json", "utf-8")));
+// writeFileSync("rewritenGraph.json", JSON.stringify(graph.toJSON(), null, 4));
+graph.initFromJSON(JSON.parse((0, fs_1.readFileSync)("rewritenGraph.json", "utf-8")));
+(0, fs_1.writeFileSync)("rewritenGraph2.json", JSON.stringify(graph.toJSON(), null, 4));
