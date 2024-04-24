@@ -524,29 +524,31 @@ export class LayerGraph{
                 const udbInfo = UDBMap.get(udbName)!;
                 let info: FuncInfo | ClassInfo | undefined = udbInfo.classes.find(c => c.name == name);
                 if(!info){
-                    info = udbInfo.functions.find(f => f.name.startsWith(name + "$"));
+                    info = udbInfo.functions.find(f => f.name.startsWith(name));
                 }
                 if(!info){
                     return {succ: false, msg: "UDB group " + udbName + " doesn't have name " + name};
                 }
                 this.addBlock(id, info, udbName);
+            } 
+            else {
+                const submoduleID = this.torchPackage!.getSubModule(submodule, false);
+                if(typeof(submoduleID) == "undefined")
+                    return {succ: false, msg: "Cannot find submodule"};
+                const thissubmodele = Database.getNode(submoduleID);
+                let info: FuncInfo | ClassInfo | undefined;
+                if(name.includes("$")) {
+                    let splitted = name.split("$");
+                    info = thissubmodele.getFunction(splitted[0]).at(parseInt(splitted[1])-1);
+                }
+                else
+                    info = thissubmodele.getClass(name);
+                if(!info)
+                    return {succ: false, msg: "Cannot find class/function " + name};
+                if(this.graph.has(id))
+                    return {succ: false, msg: "Block ID duplicated"};
+                this.addBlock(id, info, thissubmodele);
             }
-            const submoduleID = this.torchPackage!.getSubModule(submodule, false);
-            if(typeof(submoduleID) == "undefined")
-                return {succ: false, msg: "Cannot find submodule"};
-            const thissubmodele = Database.getNode(submoduleID);
-            let info: FuncInfo | ClassInfo | undefined;
-            if(name.includes("$")) {
-                let splitted = name.split("$");
-                info = thissubmodele.getFunction(splitted[0]).at(parseInt(splitted[1])-1);
-            }
-            else
-                info = thissubmodele.getClass(name);
-            if(!info)
-                return {succ: false, msg: "Cannot find class/function " + name};
-            if(this.graph.has(id))
-                return {succ: false, msg: "Block ID duplicated"};
-            this.addBlock(id, info, thissubmodele);
         }
         return {succ: true, msg: ""};
     }

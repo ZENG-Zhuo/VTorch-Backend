@@ -37,7 +37,7 @@ export class ImportManager{
     toCode(): ast.SyntaxNode[]{
         const imports = Array.from(this.importList).map(str => ast.Import([{path: str, location: ""}]));
         const udbs = Array.from(this.importUDBList).map(name => ast.CodeLine(UDBMap.get(name)!.data.code));
-        return [...imports, ...udbs];
+        return [...imports, ast.CodeLine("# ######## User Defined Blocks Starts #########"), ...udbs, ast.CodeLine("# ######## User Defined Blocks Ends #########")];
     }
 }
 export abstract class GeneratedClass{

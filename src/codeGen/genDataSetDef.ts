@@ -146,7 +146,11 @@ class SegmentationDatasetTransformer extends DatasetTransformer<SegmentationData
 
 class CustomCodeDatasetTransformer extends DatasetTransformer<CustomCodeDatasetInfo>{
     define(dataset: CustomCodeDatasetInfo, imports: ImportManager): GeneratedDataset {
-        return new GeneratedDataset([ast.CodeLine(dataset.config.code)], ast.CodeLine(dataset.config.datasetDefinition));
+        return new GeneratedDataset([
+            ast.CodeLine("# ########## User Defined Dataset Starts #########"), 
+            ast.CodeLine(dataset.config.code),
+            ast.CodeLine("# ########## User Defined Dataset Ends #########")
+        ], ast.CodeLine(dataset.config.datasetDefinition));
     }
 }
 
