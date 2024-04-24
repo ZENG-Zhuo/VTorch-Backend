@@ -39,7 +39,8 @@ export type SyntaxNode =
     | DictExpr
     | Name
     | Literal
-    | Class;
+    | Class
+    | CodeLine;
 
 export const MODULE = 'module';
 export interface Module{
@@ -363,6 +364,12 @@ export interface Class  {
   code: SyntaxNode[];
 }
 
+export const CODELINE = 'codeline';
+export interface CodeLine {
+  type: typeof CODELINE;
+  code: string;
+}
+
 export function Module(code: SyntaxNode[]): Module {
   return {type: "module", code}
 }
@@ -570,4 +577,8 @@ export function Literal(value: any): Literal {
 
 export function Class(name: string, ext: SyntaxNode[], code: SyntaxNode[]): Class {
   return {type: "class", name, extends: ext, code}
+}
+
+export function CodeLine(code: string): CodeLine{
+  return {type: "codeline", code};
 }

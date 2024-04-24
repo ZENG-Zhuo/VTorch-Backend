@@ -133,8 +133,8 @@ export function printTabbed(node: SyntaxNode, tabLevel: number, showTabs: Boolea
     case 'list':
       return tabs + '[' + node.items.map(item => printNode(item)).join(comma) + ']';
     case 'literal':
-      return tabs + typeof node.value === 'string' && node.value.indexOf('\n') >= 0
-        ? '""' + node.value + '""'
+      return tabs + typeof node.value === 'string' // && node.value.indexOf('\n') >= 0
+        ? '"' + node.value + '"'
         : node.value.toString();
     case 'module':
       return lines(node.code, tabLevel);
@@ -208,6 +208,8 @@ export function printTabbed(node: SyntaxNode, tabLevel: number, showTabs: Boolea
         (node.from ? printNode(node.from) : '') +
         (node.value ? commaSep(node.value) : '')
       );
+    case 'codeline':
+        return tabs + node.code;
     default:
       // throw 'unknown type ' + node.type;
       return `###UNKNOWN TYPE ${node.type}###`
