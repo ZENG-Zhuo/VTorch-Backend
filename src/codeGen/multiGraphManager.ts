@@ -70,7 +70,9 @@ class NamedGraphs{
     replayGraph(name: string){
         // console.log("replay graph", graphName);
         if(!this.graphs.has(name)){
-            return {succ: false, msg: "cannot find graph " + name};
+            this.graphs.set(name, new GraphWithPosition("Module_" + toValidName(name)));
+            console.log("create new graph " + "Module_" + toValidName(name));
+            return [];
         }
         return this.graphs.get(name)!.replayGraphConstruction();
     }
@@ -99,7 +101,11 @@ class NamedGraphs{
         if(!this.graphs.has(graphName)){
             return {succ: false, msg: "cannot find graph " + graphName};
         }
+        if(!this.graphs.get(graphName)?.position.has(id)){
+            return {succ: false, msg: "cannot find node " + id};
+        }
         this.graphs.get(graphName)!.position.set(id, position);
+        return {succ: true, msg: ""};
     }
     setArg(graphName: string, target: string, value: string){
         // console.log("set arg in graph", graphName);

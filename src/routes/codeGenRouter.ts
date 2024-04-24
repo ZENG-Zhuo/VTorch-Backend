@@ -89,10 +89,17 @@ codeGenRouter.post("/replayGraph", (req, res) => {
     let replayed = allGraphs.replayGraph(graphName);
     res.send(JSON.stringify(replayed));
 });
-codeGenRouter.post("/createGraph", (req, res) => {
+
+// {"graphName": "MyModel", "id": "node1", "position": {"x": "1", "y", "1"}}
+codeGenRouter.post("/changePosition", (req, res) => {
     let graphName: string = req.body.graphName;
-    allGraphs.createGraph(graphName);
-    res.send();
+    let nodeId: string = req.body.id;
+    let position: string = req.body.position;
+    let ret = allGraphs.setPosition(graphName, nodeId, position);
+    if(ret.succ){
+        res.send("true");
+    }
+    else res.status(400).send(ret.msg);
 });
 
 codeGenRouter.post("/generateCode", async (req, res) => {
