@@ -25,12 +25,7 @@ codeGenRouter.post("/delEdge", (req, res) => {
     let source: string = req.body.source;
 	let target: string = req.body.target;
 	
-	// not implemented yet
-	const result = {
-		"succ": true,	//may be false. require edges to be deleted in an order
-		"msg": ""
-	};
-
+	const result = allGraphs.removeEdge(graphName, source, target);
 	if(result.succ){
 		res.send("true");
 	}
@@ -55,12 +50,10 @@ codeGenRouter.post("/addBlock", (req, res) => {
 // body: {"graphName": "MyModel", "id": "node1"}
 codeGenRouter.post("/delBlock", (req, res) => {
     console.log(req.body);
+	let graphName: string = req.body.graphName;
+    let id: string = req.body.id;
 	
-	// not implemented yet
-	const result = {
-		"succ": true,	//may be false
-		"msg": ""
-	};
+	const result = allGraphs.deleteBlock(graphName, id);
 
 	if(result.succ){
 		res.send("true");
@@ -70,18 +63,6 @@ codeGenRouter.post("/delBlock", (req, res) => {
 
 // body: {"graphName": "MyModel", "target": "avgpool-node1-ini-in_channels", "value": "1"}
 // return: true if arg setting accepted, false if arg setting rejected (type not match)
-codeGenRouter.post("/addArgument", (req, res) => {
-    console.log(req.body);
-	let graphName: string = req.body.graphName;
-	let target: string = req.body.target;
-	let value: string = req.body.value;
-	const result = allGraphs.setArg(graphName, target, value);
-	if(result.succ){
-		res.send("true");
-	}
-	else res.status(400).send(result.msg);
-});
-
 codeGenRouter.post("/changeArgument", (req, res) => {
     console.log(req.body);
 	let graphName: string = req.body.graphName;
@@ -119,7 +100,7 @@ codeGenRouter.post("/replayGraph", (req, res) => {
 })
 codeGenRouter.post("/createGraph", (req, res) => {
 	let graphName: string = req.body.graphName;
-	let replayed = allGraphs.createGraph(graphName);
+	allGraphs.createGraph(graphName);
 	res.send();
 })
 

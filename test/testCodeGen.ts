@@ -27,13 +27,13 @@ function addBlock(graph: LayerGraph, id: string, name: string, path: string[]){
     graph.addBlock(id, classInfo.blockClass, classInfo.fileInfo);
 }
 
-function doAssert(value: any){
-    if(value)
+function doAssert(value: {succ: boolean, msg: string}, inverse: boolean = false){
+    if(value.succ !== inverse)
         return ;
-    throw new Error("assertion failed");
+    throw new Error("assertion failed. Msg: " + value.msg);
 }
 
-function test(){
+function test1(){
     let testingGraph = new LayerGraph();
     testingGraph.addBlockByName("input", "input", []);
     testingGraph.addBlockByName("output", "output", []);
@@ -41,22 +41,22 @@ function test(){
     testingGraph.addBlockByName("node2", "Conv2d", ["torch","nn"]);
     testingGraph.addBlockByName("node3", "Tanh", ["torch","nn"]);
 
-    doAssert(testingGraph.fillArg("Conv2d-node1-ini-in_channels-", "123").succ);
-    doAssert(testingGraph.fillArg("Conv2d-node1-ini-out_channels-", "456").succ);
-    doAssert(testingGraph.fillArg("Conv2d-node2-ini-in_channels-", "789").succ);
+    doAssert(testingGraph.updateArg("Conv2d-node1-ini-in_channels-", "123"));
+    doAssert(testingGraph.updateArg("Conv2d-node1-ini-out_channels-", "456"));
+    doAssert(testingGraph.updateArg("Conv2d-node2-ini-in_channels-", "789"));
 
-	doAssert(testingGraph.connectEdge("input-input-fwd-return-", "Conv2d-node1-fwd-input-").succ);
-	doAssert(testingGraph.connectEdge("Conv2d-node1-fwd-return-", "Conv2d-node2-fwd-input-").succ);
-	doAssert(testingGraph.connectEdge("Conv2d-node2-fwd-return-", "Tanh-node3-fwd-input-").succ);
-	doAssert(testingGraph.connectEdge("Tanh-node3-fwd-return-", "output-output-fwd-input-").succ);
+	doAssert(testingGraph.connectEdge("input-input-fwd-return-", "Conv2d-node1-fwd-input-"));
+	doAssert(testingGraph.connectEdge("Conv2d-node1-fwd-return-", "Conv2d-node2-fwd-input-"));
+	doAssert(testingGraph.connectEdge("Conv2d-node2-fwd-return-", "Tanh-node3-fwd-input-"));
+	doAssert(testingGraph.connectEdge("Tanh-node3-fwd-return-", "output-output-fwd-input-"));
 
     testingGraph.addBlockByName("node4", "Tanh", ["torch","nn"]);
-	doAssert(testingGraph.connectEdge("Conv2d-node1-fwd-return-", "Tanh-node4-fwd-input-").succ);
-	doAssert(testingGraph.connectEdge("Tanh-node4-fwd-return-", "output-output-fwd-input-").succ);
+	doAssert(testingGraph.connectEdge("Conv2d-node1-fwd-return-", "Tanh-node4-fwd-input-"));
+	doAssert(testingGraph.connectEdge("Tanh-node4-fwd-return-", "output-output-fwd-input-"));
     
 	testingGraph.addBlockByName("node5", "Tanh", ["torch","nn"]);
-	doAssert(testingGraph.connectEdge("input-input-fwd-return-0", "Tanh-node5-fwd-input-").succ);
-	doAssert(testingGraph.connectEdge("Tanh-node5-fwd-return-", "output-output-fwd-input-").succ);
+	doAssert(testingGraph.connectEdge("input-input-fwd-return-0", "Tanh-node5-fwd-input-"));
+	doAssert(testingGraph.connectEdge("Tanh-node5-fwd-return-", "output-output-fwd-input-"));
 
 	console.log(printNode(genAll([testingGraph])));
 
@@ -69,13 +69,13 @@ function test2(){
     testingGraph.addBlockByName("node3", "output", []);
     testingGraph.addBlockByName("node2", "Linear", ["torch","nn"]);
     
-	doAssert(testingGraph.connectEdge("input-node1-fwd-return-", "Linear-node2-fwd-input-").succ);
-	doAssert(testingGraph.connectEdge("Linear-node2-fwd-return-", "output-node3-fwd-input-").succ);
-    doAssert(!testingGraph.readyForGen().succ);
+	doAssert(testingGraph.connectEdge("input-node1-fwd-return-", "Linear-node2-fwd-input-"));
+	doAssert(testingGraph.connectEdge("Linear-node2-fwd-return-", "output-node3-fwd-input-"));
+    doAssert(testingGraph.readyForGen(), true);
 
     
-    doAssert(testingGraph.fillArg("Linear-node2-ini-in_features-", "123").succ);
-    doAssert(testingGraph.fillArg("Linear-node2-ini-out_features-", "456").succ);
+    doAssert(testingGraph.updateArg("Linear-node2-ini-in_features-", "123"));
+    doAssert(testingGraph.updateArg("Linear-node2-ini-out_features-", "456"));
 	console.log(printNode(genAll([testingGraph])));
 }
 
@@ -85,16 +85,35 @@ function test3(){
     testingGraph.addBlockByName("node3", "output", []);
     testingGraph.addBlockByName("node2", "Softmax", ["torch","nn"]);
     
-	doAssert(testingGraph.connectEdge("input-node1-fwd-return-", "Softmax-node2-fwd-input-").succ);
-	doAssert(testingGraph.connectEdge("Softmax-node2-fwd-return-", "output-node3-fwd-input-").succ);
-    doAssert(testingGraph.readyForGen().succ);
+	doAssert(testingGraph.connectEdge("input-node1-fwd-return-", "Softmax-node2-fwd-input-"));
+	doAssert(testingGraph.connectEdge("Softmax-node2-fwd-return-", "output-node3-fwd-input-"));
+    doAssert(testingGraph.readyForGen());
 
-    
-    // doAssert(testingGraph.fillArg("Linear-node2-ini-in_features-", "123").succ);
-    // doAssert(testingGraph.fillArg("Linear-node2-ini-out_features-", "456").succ);
 	console.log(printNode(genAll([testingGraph])));
 }
 
-test3();
+function test4(){
+    let testingGraph = new LayerGraph();
+    testingGraph.addBlockByName("node1", "input", []);
+    testingGraph.addBlockByName("node3", "output", []);
+    testingGraph.addBlockByName("node2", "Softmax", ["torch","nn"]);
+    testingGraph.addBlockByName("node4", "sum$1", ["torch"]);
+    testingGraph.addBlockByName("node5", "vstack$1", ["torch"]);
+    
+	doAssert(testingGraph.connectEdge("input-node1-fwd-return-", "Softmax-node2-fwd-input-"));
+	doAssert(testingGraph.connectEdge("Softmax-node2-fwd-return-", "sum$1-node4-fwd-input-"));
+	doAssert(testingGraph.connectEdge("sum$1-node4-fwd-return-", "vstack$1-node5-fwd-tensors-"));
+	doAssert(testingGraph.connectEdge("Softmax-node2-fwd-return-", "vstack$1-node5-fwd-tensors-"));
+    
+	doAssert(testingGraph.connectEdge("vstack$1-node5-fwd-return-", "output-node3-fwd-input-"));
+
+    doAssert(testingGraph.readyForGen());
+    
+    // doAssert(testingGraph.fillArg("Linear-node2-ini-in_features-", "123"));
+    // doAssert(testingGraph.fillArg("Linear-node2-ini-out_features-", "456"));
+	console.log(printNode(genAll([testingGraph])));
+}
+
+test4();
 
 console.log("all tests passed");

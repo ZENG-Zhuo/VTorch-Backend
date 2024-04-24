@@ -224,6 +224,9 @@ function checkPredefinedADT(typeinfo: TypeInfo): PythonType {
     if (typeName == "_maybe_indices_t") {
         return new Union([new Tensor(), new Tuple([new Tensor(), new Tensor()])]);
     }
+    if (typeName == "_size"){
+        return new Union([new List(new Integer()), new Tuple([new Integer(), new Variadic(new Integer())])]);
+    }
     if (Enum.mapping.has(typeName)){
         return new Enum(typeName);
     }
@@ -562,9 +565,9 @@ export function deriveType(originType: PythonType | undefined, delta: string | P
             let filterNotUndef = innerResults.map(({rest}) => rest).filter((x): x is PythonType => !!x);
             // console.log(filterNotUndef);
             if(filterNotUndef.length > 1)
-                return {match: innerResults.find(({rest}) => rest)?.match, rest: new Union(filterNotUndef)};
+                return {match: innerResults.find(({rest}) => !!rest)?.match, rest: new Union(filterNotUndef)};
             else if(filterNotUndef.length == 1)
-                return {match: innerResults.find(({rest}) => rest)?.match, rest: filterNotUndef[0]};
+                return {match: innerResults.find(({rest}) => !!rest)?.match, rest: filterNotUndef[0]};
             return failed;
         }
         case ANYTYPE:{

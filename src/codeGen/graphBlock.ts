@@ -1,7 +1,6 @@
-import { sourceMapsEnabled } from "process";
 import { Database } from "../common/objectStorage";
 import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
-import { ClassInfo, FuncInfo, TypeInfo } from "../common/pythonObjectTypes";
+import { ClassInfo, FuncInfo } from "../common/pythonObjectTypes";
 import { Package } from "../common/pythonPackageType";
 import { PythonType, toPythonType } from "./pythonTypes";
 import * as pyType from "./pythonTypes"; 
@@ -119,6 +118,9 @@ export abstract class Block{
             srcSlot.filter(edg => edg.nodeType != Block.literalNodeType)
         );
     }
+    outDegreeCount(): number{
+        return Array.from(this.fTar.values()).map(es => es.length).reduce((x, y) => x+y, 0);
+    }
     static readonly literalNodeType = "Literal";
 }
 
@@ -156,12 +158,14 @@ export abstract class TypedParamBlock extends Block{
         if(types.length == 1){
             let {match: matchD, rest: restD} = pyType.deriveType(types[types.length-1], value);
             let matchW = typeof(value) == "string" ? pyType.convertTo(value, types[0]) : {succ: pyType.isSubType(value, types[0])}
-            // console.log(matchD, restD, matchW);
-            if(!matchW.succ && !restD)
+            console.log(matchD, restD, matchW);
+            if((!matchW.succ) && (!restD)){
+                console.log("failed");
                 return failed;
+            }
             types.push(restD ? restD : new pyType.None());
             this.fSrcIsTuple.set(edgeEnd.asKey(), matchW.succ);
-            return matchD ? matchD : matchW;
+            return restD ? (matchD ? matchD : {succ: true}) : matchW;
         }
         // must be one element in the tuple
         else {
@@ -203,6 +207,28 @@ export abstract class TypedParamBlock extends Block{
             }
         }
         return false;
+    }
+
+    deleteEdge(source: Block, thisEdgeEnd: EdgeEndpoint, srcEdgeEnd?: EdgeEndpoint): boolean{
+        if(source instanceof LiteralBlock)
+            srcEdgeEnd = source.defaultEdgeEnd;
+        if(!srcEdgeEnd)
+            throw Error("src edge not provided");
+        let edges = this.fSrc.get(thisEdgeEnd.asKey());
+        if(!edges)
+            throw Error("Cannot find edgeend " + thisEdgeEnd.toString());
+        if(edges.length == 0)
+            throw Error("Node doesn't have in-degree edge");
+        if(!edges[edges.length-1].equals(srcEdgeEnd))
+            return false;
+        edges.pop();
+        this.fSrcType.get(thisEdgeEnd.asKey())!.pop();
+        if(edges.length == 0)
+            this.fSrcIsTuple.set(thisEdgeEnd.asKey(), false);
+        let srcTars = source.fTar.get(srcEdgeEnd.asKey())!;
+        let rmIdx = srcTars.findIndex(e => e.equals(thisEdgeEnd));
+        srcTars.splice(rmIdx, 1);
+        return true;
     }
 
     gratherArgs(funcName: string): [string, EdgeEndpoint | EdgeEndpoint[]][]{
@@ -344,8 +370,10 @@ export class LayerGraph{
         this.torchPackage = Database.getPackage(packageId);
     }
 
-    addBlock(id: string, blockClass: ClassInfo, fileInfo: FileModuleNode | FolderModuleNode){
-        this.graph.set(id, new LayerBlock(id, blockClass, fileInfo));
+    addBlock(id: string, info: ClassInfo | FuncInfo, fileInfo: FileModuleNode | FolderModuleNode){
+        if(info instanceof ClassInfo)
+            this.graph.set(id, new LayerBlock(id, info, fileInfo));
+        else this.graph.set(id, new FunctionBlock(id, info, fileInfo));
         console.log(this.graph.get(id));
     }
 
@@ -355,7 +383,7 @@ export class LayerGraph{
         let srcNode = this.graph.get(sourceEnd.nodeID)!;
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof TypedParamBlock){
-            console.log(tarNode);
+            // console.log(tarNode);
             console.log(tarNode.blockId, tarNode.fSrcType);
             if(!tarNode.fSrc.has(targetEnd.asKey())){
                 console.log("cannot find slot " + targetEnd.asIDKey());
@@ -371,11 +399,52 @@ export class LayerGraph{
             return {succ: false, msg: "target node doesn't accept edges"};
     }
 
-    fillArg(edgeEnding: string, arg: string): {succ: boolean, msg: string}{
+    removeEdge(sourceEdgeEnd: string, targetEdgeEnd: string): {succ: boolean, msg: string}{
+        console.log("removing edge ", sourceEdgeEnd, "to", targetEdgeEnd);
+        const sourceEnd = EdgeEndpoint.fromEdgeEndString(sourceEdgeEnd);
+        const targetEnd = EdgeEndpoint.fromEdgeEndString(targetEdgeEnd);
+        let srcNode = this.graph.get(sourceEnd.nodeID)!;
+        let tarNode = this.graph.get(targetEnd.nodeID)!;
+        if(tarNode instanceof TypedParamBlock){
+            let succ = tarNode.deleteEdge(srcNode, targetEnd, sourceEnd);
+            if(succ){
+                if(srcNode instanceof LiteralBlock && srcNode.outDegreeCount() == 0)
+                    this.removeNode(srcNode.blockId);
+                return {succ, msg: ""};
+            }
+            else
+                return {succ, msg: "edges must be removed in reverse order of adding them"};
+        }
+        else 
+            return {succ: false, msg: "target node doesn't accept edges"};
+    }
+
+    private clearSource(target: Block, key: string){
+        let thisSlot = EdgeEndpoint.fromKeyString(target, key);
+        target.fSrc.get(key)?.reverse().forEach(e => this.removeEdge(e.toString(), thisSlot.toString()));
+    }
+
+    removeNode(id: string): {succ: boolean, msg: string}{
+        console.log("removing node ", id);
+        if(!this.graph.has(id))
+            return {succ: false, msg: id + " not found"};
+        let target = this.graph.get(id)!;
+        if(target.outDegreeCount() > 0){
+            return {succ: false, msg: "please delete out-degree edges first"};
+        }
+        for(let [key, edges] of target.fSrc){
+            this.clearSource(target, key);
+        }
+        this.graph.delete(id);
+        return {succ: true, msg: ""};
+    }
+
+    updateArg(edgeEnding: string, arg: string): {succ: boolean, msg: string}{
         const targetEnd = EdgeEndpoint.fromEdgeEndString(edgeEnding);
         let newNode = new LiteralBlock(arg);
         let tarNode = this.graph.get(targetEnd.nodeID)!;
-        if(tarNode instanceof LayerBlock){
+        if(tarNode instanceof TypedParamBlock){
+            this.clearSource(tarNode, targetEnd.asKey());
             let ret = tarNode.connectIn(newNode, targetEnd);
             if(!tarNode.fSrc.has(targetEnd.asKey()))
                 return {succ: false, msg: "cannot find arg " + targetEnd.asIDKey()};
@@ -383,8 +452,11 @@ export class LayerGraph{
                 this.graph.set(newNode.blockId, newNode);
                 return {succ: true, msg: ""};
             }
+            else {
+                return {succ: false, msg: "argument rejected"};
+            }
         }
-        return {succ: false, msg: ""};
+        return {succ: false, msg: "block " + targetEnd.nodeID + " doesn't accept argument"};
     }
 
     addBlockByName(id: string, name: string, submodule: string[]): {succ: boolean, msg: string} {
@@ -406,12 +478,18 @@ export class LayerGraph{
             if(typeof(submoduleID) == "undefined")
                 return {succ: false, msg: "Cannot find submodule"};
             const thissubmodele = Database.getNode(submoduleID);
-            const classInfo = thissubmodele.getClass(name);
-            if(typeof(classInfo) == "undefined")
-                return {succ: false, msg: "Cannot find class"};
+            let info: FuncInfo | ClassInfo | undefined;
+            if(name.includes("$")) {
+                let splitted = name.split("$");
+                info = thissubmodele.getFunction(splitted[0]).at(parseInt(splitted[1])-1);
+            }
+            else
+                info = thissubmodele.getClass(name);
+            if(!info)
+                return {succ: false, msg: "Cannot find class/function " + name};
             if(this.graph.has(id))
                 return {succ: false, msg: "Block ID duplicated"};
-            this.addBlock(id, classInfo, thissubmodele);
+            this.addBlock(id, info, thissubmodele);
         }
         return {succ: true, msg: ""};
     }
@@ -443,7 +521,7 @@ export class LayerGraph{
             let blockInfo = graph[id];
             let params = blockInfo.literalParams;
             for(let [name, value] of params){
-                let result = this.fillArg(name, value);
+                let result = this.updateArg(name, value);
                 if(result.succ){
                     console.log("setting param", name, " succeed");
                 }

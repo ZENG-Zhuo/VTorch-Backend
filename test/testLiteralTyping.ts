@@ -56,4 +56,9 @@ doTest("Union[str, ellipsis, None]", "...", false)
 doTest("Optional[Sequence[Union[str, ellipsis, None]]]", "['a', 'b', 'c']", true)
 doTest("Union[str, ellipsis, None]", "'a'", true)
 
+doTest("Optional[Union[_int, _size]]", "1", true);
+doTest("Optional[Union[_int, _size]]", "(1,2,3)", true);
+doTest("Optional[Union[_int, _size]]", "[1,2,3]", true);
+doTest("Optional[Union[_int, _size]]", "[1,2,(3,)]", false);
+
 console.log("all tests passed");

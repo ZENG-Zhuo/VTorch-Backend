@@ -77,6 +77,15 @@ class NamedGraphs{
             this.graphs.get(graphName)!.position.set(id, position);
         return ret;
     }
+    deleteBlock(graphName: string, id: string){
+        if(!this.graphs.has(graphName)){
+            return {succ: false, msg: "cannot find graph " + graphName};
+        }
+        let ret = this.graphs.get(graphName)!.removeNode(id);
+        if(ret.succ)
+            this.graphs.get(graphName)!.position.delete(id);
+        return ret;
+    }
     setPosition(graphName: string, id: string, position: any){
         // console.log("set position in graph", graphName);
         if(!this.graphs.has(graphName)){
@@ -89,7 +98,7 @@ class NamedGraphs{
         if(!this.graphs.has(graphName)){
             return {succ: false, msg: "cannot find graph " + graphName};
         }
-        return this.graphs.get(graphName)!.fillArg(target, value);
+        return this.graphs.get(graphName)!.updateArg(target, value);
     }
     addEdge(graphName: string, source: string, target: string){
         // console.log("add edge to graph", graphName);
@@ -97,6 +106,14 @@ class NamedGraphs{
             return {succ: false, msg: "cannot find graph " + graphName};
         }
         let ret = this.graphs.get(graphName)!.connectEdge(source, target);
+        console.log(ret.msg);
+        return ret;
+    }
+    removeEdge(graphName: string, source: string, target: string){
+        if(!this.graphs.has(graphName)){
+            return {succ: false, msg: "cannot find graph " + graphName};
+        }
+        let ret = this.graphs.get(graphName)!.removeEdge(source, target);
         console.log(ret.msg);
         return ret;
     }
