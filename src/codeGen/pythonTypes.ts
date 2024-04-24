@@ -184,7 +184,7 @@ export class Enum implements PythonType {
     }
 }
 
-export const ANYTYPE = "any";
+export const ANYTYPE = "Any";
 export class Any implements PythonType {
     readonly typename: string;
     constructor() {
@@ -229,6 +229,9 @@ function checkPredefinedADT(typeinfo: TypeInfo): PythonType {
     }
     if (Enum.mapping.has(typeName)){
         return new Enum(typeName);
+    }
+    if (typeName == "any"){
+        return new Any();
     }
     if (typeName[0] == "_"){
         let tempTypeInfo = new TypeInfo(typeName.substring(1), typeinfo.getSubtypes());

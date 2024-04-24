@@ -18,7 +18,7 @@ class GraphWithPosition extends LayerGraph{
                 continue;
             let body = {
                 id, 
-                "name": blk.blockType, 
+                "type": blk.blockType, 
                 "submodule": blk instanceof LayerBlock ? blk.getPath() : 
                                 blk instanceof FunctionBlock ? blk.getPath() :
                                 [],
@@ -151,16 +151,16 @@ class NamedGraphs{
         }
         let modelGraph = this.graphs.get(codeGenInfo.modelName)!;
         let lossGraph = this.graphs.get(codeGenInfo.lossName)!;
-        if(modelGraph.inputBlocks.length > 1)
-            return {succ: false, msg: "Model " + codeGenInfo.modelName + " has multiple inputs"};
+        if(modelGraph.inputBlocks.length != 1)
+            return {succ: false, msg: "Model " + codeGenInfo.modelName + " must have single input"};
         if(modelGraph.outputBlocks.length != 1)
             return {succ: false, msg: "Model " + codeGenInfo.modelName + " must have single output"};
         if(modelGraph.groundTruthBlocks.length > 0)
             return {succ: false, msg: "Model " + codeGenInfo.modelName + " must not have groundtruth input"};
-        if(lossGraph.inputBlocks.length > 1)
-            return {succ: false, msg: "Loss function " + codeGenInfo.lossName + " has multiple inputs"};
-        if(lossGraph.groundTruthBlocks.length > 1)
-            return {succ: false, msg: "Loss function " + codeGenInfo.lossName + " has multiple groundtruth inputs"};
+        if(lossGraph.inputBlocks.length != 1)
+            return {succ: false, msg: "Loss function " + codeGenInfo.lossName + " must have single input"};
+        if(lossGraph.groundTruthBlocks.length != 1)
+            return {succ: false, msg: "Loss function " + codeGenInfo.lossName + " must have single groundtruth input"};
         if(lossGraph.outputBlocks.length != 1)
             return {succ: false, msg: "Loss function " + codeGenInfo.lossName + " must have single output"};
         if(!datasets.has(codeGenInfo.datasetName))

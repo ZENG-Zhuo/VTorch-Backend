@@ -31,15 +31,16 @@ codeGenRouter.post("/delEdge", (req, res) => {
 	else res.status(400).send(result.msg);	
 });
 
-// body: {"graphName": "MyModel", "id": "node1", "name": "Conv2d", "submodule": ["torch", "nn"]}
+// body: {"graphName": "MyModel", "id": "node1", "name": "Conv2d", "submodule": ["torch", "nn"], "position": ?}
 codeGenRouter.post("/addBlock", (req, res) => {
     console.log(req.body);
     let graphName: string = req.body.graphName;
     let id: string = req.body.id;
     let name: string = req.body.name;
     let submodule: string[] = req.body.submodule;
+    let position = req.body.position;
 
-    const result = allGraphs.addBlock(graphName, id, name, submodule);
+    const result = allGraphs.addBlock(graphName, id, name, submodule, position);
     if (result.succ) {
         res.send("true");
     } else res.status(400).send(result.msg);
