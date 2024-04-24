@@ -159,7 +159,7 @@ export abstract class TypedParamBlock extends Block{
         if(types.length == 1){
             let {match: matchD, rest: restD} = pyType.deriveType(types[types.length-1], value);
             let matchW = typeof(value) == "string" ? pyType.convertTo(value, types[0]) : {succ: pyType.isSubType(value, types[0])}
-            console.log(matchD, restD, matchW);
+            console.log(`(${value} -> ${edgeEnd.toString()})`, "append type result: ", matchD, restD, matchW);
             if((!matchW.succ) && (!restD)){
                 // console.log("failed");
                 return failed;
@@ -259,7 +259,7 @@ export abstract class TypedParamBlock extends Block{
                 this.checkParamReady(asKey(prm.name)) :
                 ((!!prm.initial_value) || prm.name == "self" || prm.power || prm.star) 
         );
-        console.log("function", func.name, "param status", paramFilldStatus);
+        console.log("function", func.name, "param status", paramFilldStatus, "conclusion", paramFilldStatus.reduce((x, y) => x && y, true));
         return paramFilldStatus.reduce((x, y) => x && y, true);
     }
 
@@ -309,8 +309,10 @@ export class LayerBlock extends TypedParamBlock{
         let initFunction = this.blockClass.getFunctions("__init__").at(0);
         let forwardFunction = this.blockClass.getFunctions("forward").at(0);
         console.log("checking readyCodegen ", this.blockId);
-        return (!initFunction || this.checkFunctionReady(initFunction)) 
-                && (!forwardFunction || this.checkFunctionReady(forwardFunction));
+        const ret1 = (!initFunction || this.checkFunctionReady(initFunction));
+        const ret2 = (!forwardFunction || this.checkFunctionReady(forwardFunction));
+        console.log("ready for gen conclusion:", ret1, ret2, " => ", ret1 && ret2);
+        return ret1 && ret2;
     }
 }
 
@@ -396,7 +398,7 @@ export class LayerGraph{
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof TypedParamBlock){
             // console.log(tarNode);
-            console.log(tarNode.blockId, tarNode.fSrcType);
+            console.log("connect edge: checking", tarNode.blockId, "fits", tarNode.fSrcType);
             if(!tarNode.fSrc.has(targetEnd.asKey())){
                 console.log("cannot find slot " + targetEnd.asIDKey());
                 return {succ: false, msg: "cannot find slot " + targetEnd.asIDKey()};
@@ -499,7 +501,7 @@ export class LayerGraph{
             this.graph.set(id, newBlock);
         }
         else {
-            console.log(id, name, submodule);
+            // console.log(id, name, submodule);
             const submoduleID = this.torchPackage!.getSubModule(submodule, false);
             if(typeof(submoduleID) == "undefined")
                 return {succ: false, msg: "Cannot find submodule"};
@@ -547,35 +549,35 @@ export class LayerGraph{
             }
         }
         // console.log("all nodes added");
-        console.log(this.graph);
+        // console.log(this.graph);
         for(let id of Object.keys(graph)){
             let blockInfo = graph[id];
             let params = blockInfo.literalParams;
             for(let [name, value] of params){
                 let result = this.updateArg(name, value);
                 if(result.succ){
-                    console.log("setting param", name, " succeed");
+                    // console.log("setting param", name, " succeed");
                 }
                 else {
                     throw new Error("setting param " + name + " = " + value + " failed " + result.msg)
                 }
             }
-            console.log("all params added in ", id);
+            // console.log("all params added in ", id);
             
             let sources = blockInfo.source;
             for(let [thisSlot, srcSlot] of sources){
-                console.log("find edge ", srcSlot, " to ", thisSlot);
+                // console.log("find edge ", srcSlot, " to ", thisSlot);
                 let ret = this.connectEdge(srcSlot, thisSlot);
                 if(ret.succ){
-                    console.log("edge setup succeed");
+                    // console.log("edge setup succeed");
                 }
                 else {
                     throw new Error(ret.msg);
                 }
             }
-            console.log("all edges add in ", id);
+            // console.log("all edges add in ", id);
         }
-        console.log(this.graph);
+        // console.log(this.graph);
     }
     toJSON(): GraphJSON{
         let ret: GraphJSON = {};
@@ -637,9 +639,12 @@ export class LayerGraph{
         for(let [id, blk] of this.graph.entries())
             if(blk instanceof LiteralBlock)
                 continue;
-            else if(blk instanceof TypedParamBlock)
+            else if(blk instanceof TypedParamBlock){
                 if(!blk.readyForGen())
                     return {succ: false, msg: `Node ${id} does not have enough arguments`};
+                else 
+                    console.log("ready for gen test: ", id, "passed");
+            }
         return {succ: true, msg: ""};
     }
 }

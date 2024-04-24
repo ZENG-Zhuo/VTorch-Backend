@@ -1,6 +1,6 @@
 import { DatasetInfo, DatasetType, SegmentationDatasetInfo, TabularDatasetInfo, TorchvisionDatasetInfo, TransformInstance } from "../common/datasetTypes";
 import { Database } from "../common/objectStorage";
-import { GeneratedClass, GeneratedDataset, ImportManager } from "./pyCodeGen";
+import { GeneratedClass, GeneratedDataset, ImportManager, getParamNames } from "./pyCodeGen";
 import { SyntaxNode } from "./python_ast";
 import * as ast from "./python_ast";
 
@@ -16,12 +16,16 @@ function transformToSyntax(tf: TransformInstance): SyntaxNode{
 
 function transformParamToSyntax(tfParam: string | TransformInstance[] | undefined): ast.Argument{
     console.log("transforming", tfParam);
-    if(!tfParam)
+    if(!tfParam || tfParam == "" || (tfParam instanceof Array && tfParam.length == 0))
         return ast.Argument(ast.Literal(""));
     else if(typeof(tfParam) == "string")
         return ast.Argument(ast.Name(tfParam));
     else 
-        return ast.Argument(ast.Tuple(tfParam.map(transformToSyntax)));
+        return ast.Argument(
+            ast.Call(
+                ast.CodeLine("torchvision.transforms.Compose"), 
+                [ast.Argument(ast.ListExpr(tfParam.map(transformToSyntax)))]
+            ));
 }
 // zip: [A, A, A], [B, B, B] => [A, B], [A, B], [A, B]
 function zip<T, U>(array1: T[], array2: U[]): [T, U][]{
@@ -33,41 +37,20 @@ abstract class DatasetTransformer<DT>{
 }
 
 class TorchVisionDatasetTransformer extends DatasetTransformer<TorchvisionDatasetInfo>{
-    getParamNames(torchvisionDatasetName: string){
-        let packageId = Database.findPackage("torchvision", "1.0.0");
-        if (packageId){
-            const torch = Database.getPackage(packageId);
-            const datasetsID = torch.getSubModule(["torchvision", "datasets"], false);
-            if (datasetsID){
-                const nn = Database.getNode(datasetsID);
-                const module = nn.getClass(torchvisionDatasetName);
-                return module?.getFunctions("__init__").at(0)?.parameters;
-                // const func = nn.functions;
-                // const funcs = Array.from(nn.importedFunctions.keys()).flatMap(x => nn.getFunction(x))
-                // console.log(func, funcs);
-                // writeFileSync("allFunctionsNN.txt", (func.join("\n") + "\n\n======imported=====\n\n" + funcs.join("\n")));
-            }
-        }
-    }
 
     define(dataset: TorchvisionDatasetInfo, imports: ImportManager): GeneratedDataset {
         imports.addAsStr("torchvision");
         imports.addAsStr("torchvision.transforms");
-        imports.addAsStr("torchvision.datasets");
-
-        function toTVDataset(name: string){
-            return ast.Dot(ast.Dot(ast.Name("torchvision"), "datasets"), name);
-        }
 
         let args = dataset.initFuncParams.map(transformParamToSyntax);
-        let params = this.getParamNames(dataset.torchvisionDatasetName);
+        let params = getParamNames(dataset.torchvisionDatasetName, ["torchvision", "datasets"], imports);
         if(params){
             console.log("find torchvision dataset", dataset.torchvisionDatasetName, "params: ", params.map(x => x.name));
             args = zip(args, params.slice(1)).filter(([a, _]) => !(a.actual.type == ast.LITERAL && (a.actual as ast.Literal).value == ""))
                 .map(([a, p]) => ast.Argument(a.actual, ast.Name(p.name)));
         }
         let construction = ast.Call(
-            toTVDataset(dataset.torchvisionDatasetName), 
+            ast.CodeLine("torchvision.datasets." + dataset.torchvisionDatasetName),
             args
         );
         return new GeneratedDataset([], construction);

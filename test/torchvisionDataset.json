@@ -1,15 +1,15 @@
 {
     "name": "11",
     "type": "TorchvisionDatasetInfo",
-    "torchvisionDatasetName": "FlyingThings3D",
+    "torchvisionDatasetName": "MNIST",
     "initFuncParams": [
         "\"../data\"",
-        null,
-        "\"clean\"",
-        null,
+        "True",
         [
-            { "name": "Resize", "parameters": ["(256, 256)"] },
-            { "name": "ToTensor", "parameters": [] }
-        ]
+            { "name": "ToTensor", "parameters": [] },
+            { "name": "Normalize", "parameters": ["(0.1307,)", "(0.3081,)"] }
+        ],
+        [],
+        "True"
     ]
 }

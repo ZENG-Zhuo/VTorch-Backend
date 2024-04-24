@@ -9,17 +9,23 @@ import torch.nn
 
 import torch.nn.functional
 
+import torch.optim
+
+import torch.utils.data
+
 class MyModel(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.node1 = torch.nn.Conv2d(in_channels=123,out_channels=456,kernel_size=(1,1))
-        self.node2 = torch.nn.Conv2d(in_channels=789,out_channels=101)
-        self.node3 = torch.nn.Tanh()
+        self.node6 = torch.nn.Flatten(start_dim=1,end_dim=3)
+        self.node1 = torch.nn.Linear(in_features=784,out_features=512)
+        self.node2 = torch.nn.Linear(in_features=512,out_features=256)
+        self.node3 = torch.nn.Linear(in_features=256,out_features=10)
     def forward(self, x):
-        y = self.node1(input=x)
-        z = self.node2(input=y)
-        a = self.node3(input=z)
-        return a
+        y = self.node6(input=x)
+        z = self.node1(input=y)
+        a = self.node2(input=torch.nn.functional.relu(input=z))
+        b = self.node3(input=torch.nn.functional.relu(input=a))
+        return b
 
 class MyLoss(torch.nn.Module):
     def __init__(self):
@@ -29,12 +35,12 @@ class MyLoss(torch.nn.Module):
 
 class Training():
     def __init__(self):
-        self.dataset = torchvision.datasets.FlyingThings3D(root="../data",pass_name="clean",transforms=(torchvision.transforms.Resize((256, 256)), torchvision.transforms.ToTensor()))
+        self.dataset = torchvision.datasets.MNIST(root="../data",train=True,transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((0.1307,),(0.3081,))]),download=True)
         self.model = MyModel()
         self.lossFunction = MyLoss()
     def train(self):
-        optimizer = torch.nn.Adam()
-        dataloader = torch.utils.data.DataLoader(self.dataset)
+        optimizer = torch.optim.Adam(params=self.model.parameters(),lr=1e-4)
+        dataloader = torch.utils.data.DataLoader(dataset=self.dataset,batch_size=64)
         for batch_index, (inputs, targets) in enumerate(dataloader):
             optimizer.zero_grad()
             outputs = self.model(inputs)
@@ -42,4 +48,4 @@ class Training():
             loss.backward()
             optimizer.step()
             if batch_index % 100 == 0:
-                print(f"Batch: {batch_index}, Training Loss: {loss}")
+                print("Batch: {}, Training Loss: {}".format(batch_index, loss))

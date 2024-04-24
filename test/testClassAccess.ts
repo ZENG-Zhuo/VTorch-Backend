@@ -9,9 +9,8 @@ if (packageId){
 	const nnId = torch.getSubModule(["torch", "nn"], false);
 	if (nnId){
 		const nn = Database.getNode(nnId);
-		console.log(nn.relativePath);
-		const module = nn.getClass("Conv2d")!;
-		console.log(module.toString());
+		const module = nn.getClass("Flatten");
+		console.log(module?.toString());
 		// const func = nn.functions;
 		// const funcs = Array.from(nn.importedFunctions.keys()).flatMap(x => nn.getFunction(x))
 		// console.log(func, funcs);

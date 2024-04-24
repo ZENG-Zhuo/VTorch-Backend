@@ -1,4 +1,7 @@
+import { Database } from "../common/objectStorage";
+import { OptimizerConfig } from "../common/optimizerTypes";
 import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
+import { ParameterInfo } from "../common/pythonObjectTypes";
 import { genModelClass } from "./genModelDef";
 import { LayerGraph } from "./graphBlock";
 import { SyntaxNode } from "./python_ast";
@@ -55,57 +58,48 @@ export class GeneratedDataset extends GeneratedClass{
     // }
 }
 
-export function genTrainingClass(modelName: string, lossName: string){
-    let initFunc = new PythonFunc();
-    const selfModel = ast.Dot(ast.Name("self"), "model");
-    const selfLoss = ast.Dot(ast.Name("self"), "lossFunction");
-    // initFunc.body.push(ast.Call(ast.Dot(ast.Call(ast.Name("super"), []), "__init__"), []));
-    initFunc.body.push(
-                    ast.Assignment("=", 
-                    [selfModel], 
-                    [ast.Call(ast.Name(modelName), [])]
-    ));
-    initFunc.body.push(
-        ast.Assignment("=", 
-        [selfLoss], 
-        [ast.Call(ast.Name(lossName), [])]
-    ));
+// zip: [A, A, A], [B, B, B] => [A, B], [A, B], [A, B]
+export function zip<T, U>(array1: T[], array2: U[]): [T, U][]{
+    return array1.map((e, i) => [e, array2[i]] as [T, U]);
+}
+export function getParamNames(name: string, path: string[], imports: ImportManager): ParameterInfo[] | undefined{
+    imports.addAsStr(path.join("."));
+    let packageId = Database.findPackage(path[0], "1.0.0");
+    if (packageId){
+        const torch = Database.getPackage(packageId);
+        const datasetsID = torch.getSubModule(path, false);
+        if (datasetsID){
+            const nn = Database.getNode(datasetsID);
+            const module = nn.getClass(name);
+            return module?.getFunctions("__init__").at(0)?.parameters;
+        }
+    }
+}
 
-    let loopBody: SyntaxNode[] = [];
-    let astOptimizerVar = ast.Name("optimizer");
-    let makeForLoop = (code: ast.SyntaxNode[]) => ast.For([ast.Name("batch_idx"), ast.Name("data"), ast.Name("target")], [ast.Call(ast.Name("enumerate"), [ast.Argument(ast.Name("data_loader"))])], code);
+export function optimizerGen(opt: OptimizerConfig, imports: ImportManager, modelVarName: string): ast.Call{
+    const params = getParamNames(opt.name, ["torch", "optim"], imports);
+    const args = [ast.CodeLine(`${modelVarName}.parameters()`), ...opt.parameters.map(x => x ? ast.CodeLine(x) : ast.Name("None"))];
+    let realArgs: ast.Argument[];
+    if(params){
+        realArgs = zip(args, params.slice(1))
+            .filter(([x, _]) => x.type == ast.CODELINE)
+            .map(([a, p]) => ast.Argument(a, ast.Name(p.name)));
+    }
+    else realArgs = args.map(a => ast.Argument(a));
+    return ast.Call(ast.Dot(ast.CodeLine("torch.optim"), opt.name), realArgs);
+}
 
-    loopBody.push(
-        ast.Assignment("=", 
-        [ast.Name("output")], 
-        [ast.Call(selfModel, [ast.Argument(ast.Name("data"))])]
-    ));
-    loopBody.push(
-        ast.Assignment("=", 
-        [ast.Name("loss")], 
-        [ast.Call(selfLoss, [ast.Argument(ast.Name("output")), ast.Argument(ast.Name("target"))])]
-    ));
-
-    loopBody.push(ast.Call(ast.Dot(astOptimizerVar, "zero_grad"), []));
-    loopBody.push(ast.Call(ast.Dot(ast.Name("loss"), "backward"), []));
-    loopBody.push(ast.Call(ast.Dot(astOptimizerVar, "step"), []));
-    
-    loopBody.push(ast.If(ast.BinaryOperator("==", ast.BinaryOperator("%", ast.Name("batch_idx"), ast.Literal(100)), ast.Literal(0)), 
-        [ast.Call(ast.Name("print"), [ast.Argument(ast.Name("f\"Training Loss: {loss}\""))])],
-        [], ast.Else([])
-    ));
-    
-
-    let optimizerType = ast.Dot(ast.Dot(ast.Name("torch"), "nn"), "Adam");     //torch.nn.Adam
-
-    let trainFunc = new PythonFunc();
-    trainFunc.body.push(ast.Assignment("=", [astOptimizerVar], [ast.Call(optimizerType, [])]));
-    trainFunc.body.push(makeForLoop(loopBody));
-
-    return ast.Class("Training", [], [
-        initFunc.toFuncDef("__init__", true),
-        trainFunc.toFuncDef("train", true)
-    ]);
+export function dataloaderGen(dlArgs: string[], imports: ImportManager, datasetVarName: string) {
+    const params = getParamNames("DataLoader", ["torch", "utils", "data"], imports);
+    const args = [ast.CodeLine(datasetVarName), ...dlArgs.map(x => x == "" ? ast.Name("None") : ast.CodeLine(x))];
+    let realArgs: ast.Argument[];
+    if(params){
+        realArgs = zip(args, params.slice(1))
+            .filter(([x, _]) => x.type == ast.CODELINE)
+            .map(([a, p]) => ast.Argument(a, ast.Name(p.name)));
+    }
+    else realArgs = args.map(a => ast.Argument(a));
+    return ast.Call(ast.CodeLine("torch.utils.data.DataLoader"), realArgs);
 }
 
 export function genAll(graphs: LayerGraph[]): SyntaxNode{
@@ -114,11 +108,7 @@ export function genAll(graphs: LayerGraph[]): SyntaxNode{
     return ast.Module([...imports.toCode(), ...graphClasses]);
 }
 
-export function generateAll(dataSet: GeneratedDataset, model: GeneratedModelClass, loss: GeneratedModelClass, imports: ImportManager): ast.Module{
-    // zip: [A, A, A], [B, B, B] => [A, B], [A, B], [A, B]
-    function zip<T, U>(array1: T[], array2: U[]): [T, U][]{
-        return array1.map((e, i) => [e, array2[i]] as [T, U]);
-    }
+export function generateAll(dataSet: GeneratedDataset, model: GeneratedModelClass, loss: GeneratedModelClass, optim: OptimizerConfig, loader: string[], imports: ImportManager): ast.Module{
 
     const selfModel = "self.model";
     const selfLoss = "self.lossFunction";
@@ -133,8 +123,8 @@ export function generateAll(dataSet: GeneratedDataset, model: GeneratedModelClas
     const optimizer = "optimizer";
     const dataLoder = "dataloader";
 
-    trainFunc.body.push(ast.CodeLine(`${optimizer} = torch.nn.Adam()`));
-    trainFunc.body.push(ast.CodeLine(`${dataLoder} = torch.utils.data.DataLoader(${selfDataset})`));
+    trainFunc.body.push(ast.Assignment("=", [ast.Name(optimizer)], [optimizerGen(optim, imports, selfModel)]));
+    trainFunc.body.push(ast.Assignment("=", [ast.Name(dataLoder)], [dataloaderGen(loader, imports, selfDataset)]));
 
     const loopBody: SyntaxNode[] = [];
     const batch_index = "batch_index";
@@ -149,7 +139,7 @@ export function generateAll(dataSet: GeneratedDataset, model: GeneratedModelClas
     loopBody.push(ast.CodeLine(`loss.backward()`));
     loopBody.push(ast.CodeLine(`${optimizer}.step()`));
     loopBody.push(ast.If(ast.CodeLine(`${batch_index} % 100 == 0`), [
-        ast.CodeLine(`print(f\"Batch: {${batch_index}}, Training Loss: {loss}\")`)
+        ast.CodeLine(`print(\"Batch: {}, Training Loss: {}\".format(${batch_index}, loss))`)
     ], []));
     return ast.Module([
         ...imports.toCode(),
