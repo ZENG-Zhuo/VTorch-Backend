@@ -1,5 +1,6 @@
 import { DatasetInfo, DatasetType, SegmentationDatasetInfo, TabularDatasetInfo, TorchvisionDatasetInfo, TransformInstance } from "../common/datasetTypes";
-import { ImportManager, PythonFunc } from "./pyCodeGen";
+import { Database } from "../common/objectStorage";
+import { GeneratedClass, GeneratedDataset, ImportManager } from "./pyCodeGen";
 import { SyntaxNode } from "./python_ast";
 import * as ast from "./python_ast";
 
@@ -22,16 +23,34 @@ function transformParamToSyntax(tfParam: string | TransformInstance[] | undefine
     else 
         return ast.Argument(ast.Tuple(tfParam.map(transformToSyntax)));
 }
+// zip: [A, A, A], [B, B, B] => [A, B], [A, B], [A, B]
+function zip<T, U>(array1: T[], array2: U[]): [T, U][]{
+    return array1.map((e, i) => [e, array2[i]] as [T, U]);
+}
 
 abstract class DatasetTransformer<DT>{
-    abstract define(dataset: DT, imports: ImportManager): {
-        definition: SyntaxNode[],
-        construction: SyntaxNode
-    }
+    abstract define(dataset: DT, imports: ImportManager): GeneratedDataset
 }
 
 class TorchVisionDatasetTransformer extends DatasetTransformer<TorchvisionDatasetInfo>{
-    define(dataset: TorchvisionDatasetInfo, imports: ImportManager): { definition: SyntaxNode[]; construction: SyntaxNode; } {
+    getParamNames(torchvisionDatasetName: string){
+        let packageId = Database.findPackage("torchvision", "1.0.0");
+        if (packageId){
+            const torch = Database.getPackage(packageId);
+            const datasetsID = torch.getSubModule(["torchvision", "datasets"], false);
+            if (datasetsID){
+                const nn = Database.getNode(datasetsID);
+                const module = nn.getClass(torchvisionDatasetName);
+                return module?.getFunctions("__init__").at(0)?.parameters;
+                // const func = nn.functions;
+                // const funcs = Array.from(nn.importedFunctions.keys()).flatMap(x => nn.getFunction(x))
+                // console.log(func, funcs);
+                // writeFileSync("allFunctionsNN.txt", (func.join("\n") + "\n\n======imported=====\n\n" + funcs.join("\n")));
+            }
+        }
+    }
+
+    define(dataset: TorchvisionDatasetInfo, imports: ImportManager): GeneratedDataset {
         imports.addAsStr("torchvision");
         imports.addAsStr("torchvision.transforms");
         imports.addAsStr("torchvision.datasets");
@@ -40,16 +59,23 @@ class TorchVisionDatasetTransformer extends DatasetTransformer<TorchvisionDatase
             return ast.Dot(ast.Dot(ast.Name("torchvision"), "datasets"), name);
         }
 
+        let args = dataset.initFuncParams.map(transformParamToSyntax);
+        let params = this.getParamNames(dataset.torchvisionDatasetName);
+        if(params){
+            console.log("find torchvision dataset", dataset.torchvisionDatasetName, "params: ", params.map(x => x.name));
+            args = zip(args, params.slice(1)).filter(([a, _]) => !(a.actual.type == ast.LITERAL && (a.actual as ast.Literal).value == ""))
+                .map(([a, p]) => ast.Argument(a.actual, ast.Name(p.name)));
+        }
         let construction = ast.Call(
             toTVDataset(dataset.torchvisionDatasetName), 
-            dataset.initFuncParams.map(transformParamToSyntax)
+            args
         );
-        return {definition: [], construction};
+        return new GeneratedDataset([], construction);
     }
 }
 
 class TabularDatasetTransformer extends DatasetTransformer<TabularDatasetInfo>{
-    define(dataset: TabularDatasetInfo, imports: ImportManager): { definition: SyntaxNode[]; construction: SyntaxNode; } {
+    define(dataset: TabularDatasetInfo, imports: ImportManager): GeneratedDataset {
         imports.addAsStr("torch");
         imports.addAsStr("torch.utils.data");
 
@@ -65,6 +91,8 @@ class TabularDatasetTransformer extends DatasetTransformer<TabularDatasetInfo>{
         }
         if(dataset.config.targetColumn)
             initBody.push(ast.CodeLine(`self.targetColumn = "${dataset.config.targetColumn}"`));
+        else 
+            initBody.push(ast.CodeLine(`self.targetColumn = "${dataset.config.targetColumn}"`));
         const initFunction = ast.Def("__init__", [ast.Parameter("self")], initBody);
 
         // define __len__
@@ -78,15 +106,16 @@ class TabularDatasetTransformer extends DatasetTransformer<TabularDatasetInfo>{
             getItemBody.push(ast.CodeLine("return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)"));
         }
         else {
-            getItemBody.push(ast.CodeLine("x = self.data.iloc[idx].values"));
-            getItemBody.push(ast.CodeLine("return torch.tensor(x, dtype=torch.float32)"));
+            getItemBody.push(ast.CodeLine("x = self.data.drop(data.columns[-1], axis=1).iloc[idx].values"));
+            getItemBody.push(ast.CodeLine("y = self.data.iloc[idx, -1]"));
+            getItemBody.push(ast.CodeLine("return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)"));
         }
         const getItemFunction = ast.Def("__getitem__", [ast.Parameter("self"), ast.Parameter("idx")], getItemBody);
 
         let classDef = ast.Class("TabularDataset", [ast.CodeLine("torch.utils.data.Dataset")], [
             initFunction, lenFunction, getItemFunction
         ]);
-        return {definition: [classDef], construction: ast.CodeLine("TabularDataset()")};
+        return new GeneratedDataset([classDef], ast.CodeLine("TabularDataset()"));
     }
 }
 
@@ -94,7 +123,7 @@ class SegmentationDatasetTransformer extends DatasetTransformer<SegmentationData
     makeAssignMember(memberName: string, value: SyntaxNode): ast.Assignment{
         return ast.Assignment("=", [ast.Dot(ast.Name("self"), memberName)], [value]);
     }
-    define(dataset: SegmentationDatasetInfo, imports: ImportManager): { definition: SyntaxNode[]; construction: SyntaxNode; } {
+    define(dataset: SegmentationDatasetInfo, imports: ImportManager): GeneratedDataset {
         imports.addAsStr("torch");
         imports.addAsStr("torch.utils.data");
         imports.addAsStr("os");
@@ -132,14 +161,11 @@ class SegmentationDatasetTransformer extends DatasetTransformer<SegmentationData
         let classDef = ast.Class("SegmentationDataset", [ast.CodeLine("torch.utils.data.Dataset")], [
             initFunction, lenFunction, getItemFunction
         ]);
-        return {definition: [classDef], construction: ast.CodeLine("SegmentationDataset()")};
+        return new GeneratedDataset([classDef], ast.CodeLine("SegmentationDataset()"));
     }
 }
 
-export function defineDataset(dataset: DatasetInfo, imports: ImportManager): {
-    definition: SyntaxNode[],
-    construction: SyntaxNode
-}{
+export function defineDataset(dataset: DatasetInfo, imports: ImportManager): GeneratedDataset{
     switch (dataset.type as DatasetType) {
         case "TorchvisionDatasetInfo":
             return (new TorchVisionDatasetTransformer).define(dataset as TorchvisionDatasetInfo, imports);;

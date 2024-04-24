@@ -1,22 +1,8 @@
 import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
-import { LayerGraph, Block, INPUTBLKID, OUTPUTBLKID, LayerBlock, LiteralBlock, EdgeEndpoint, OutputBlock, FunctionBlock} from "./graphBlock";
+import { genModelClass } from "./genModelDef";
+import { LayerGraph } from "./graphBlock";
 import { SyntaxNode } from "./python_ast";
 import * as ast from "./python_ast";
-
-
-function toValidName(varName: string): string {
-    const regex = /[^a-zA-Z0-9]+/g;
-    return varName.replace(regex, '_');
-}
-
-class VarNameGenerator{
-    private x: number = 22;
-    public genFlowVar(prefex: string = ""){
-      this.x = (this.x+1)%26;
-      return prefex + String.fromCharCode(this.x + 97);
-    }
-    reset() {this.x = 22;}
-}
 
 export class PythonFunc{
     params: ast.Name[] = [];
@@ -29,7 +15,6 @@ export class PythonFunc{
         return ast.Def(name, allParams.map(x => ast.Parameter(x.id)), allBody);
     }
 }
-
 export class ImportManager{
     importList: Set<string> = new Set();
     add(modul: FileModuleNode | FolderModuleNode){
@@ -42,164 +27,32 @@ export class ImportManager{
         return Array.from(this.importList).map(str => ast.Import([{path: str, location: ""}]));
     }
 }
-
-abstract class Environment{
-    readonly idToVar: Map<string, SyntaxNode> = new Map();
-    readonly varNameGenerator = new VarNameGenerator();
-
-    readonly varDefField: PythonFunc;
-    readonly graph: LayerGraph;
-    readonly importManager: ImportManager;
-    readonly abstract genVar: (blk: Block) => ast.Dot | ast.Name;
-    readonly abstract layerNodeFuncName: string;
-    readonly abstract getLayerFuncCalled: (blk: LayerBlock) => SyntaxNode;
-    static readonly self = ast.Name("self");
-
-    constructor(varDefField: PythonFunc, graph: LayerGraph, imports: ImportManager){
-        this.varDefField = varDefField;
-        this.graph = graph;
-        this.importManager = imports;
+export abstract class GeneratedClass{
+    readonly definition: SyntaxNode[]; 
+    readonly construction: SyntaxNode;
+    constructor(definition: SyntaxNode[], construction: SyntaxNode){
+        this.definition = definition;
+        this.construction = construction;
     }
-
-    // return the member variable
-    private addVarDefine(blk: Block, value: SyntaxNode, memberName?: string): SyntaxNode{
-        let thisVar = this.genVar(blk);
-            this.varDefField.body.push(
-                ast.Assignment("=", 
-                [thisVar], 
-                [value]
-            ));
-        this.idToVar.set(blk.blockId, thisVar);
-        return thisVar;
-    }
-
-    private edgesToArgs(argEdges: [string, EdgeEndpoint | EdgeEndpoint[]][]): ast.Argument[]{
-        return argEdges.map(([paramName, edges]) => {
-            if(edges instanceof EdgeEndpoint){
-                return ast.Argument(this.toValue(edges), ast.Name(paramName));
-            }
-            else {
-                return ast.Argument(ast.Tuple(edges.map(x => this.toValue(x))), ast.Name(paramName));
-            }
-        });
-    }
-
-    // (["torch", "nn"], "conv2d") => torch.nn.conv2d 
-    protected pathToFunc(path: string[], callName: string): SyntaxNode{
-        let fullPath = [...path, callName];
-        return fullPath.slice(1).reduce((pre, nxt) => ast.Dot(pre, nxt), ast.Name(fullPath[0]) as SyntaxNode);
-    }
-
-    addBlock(blk: Block): SyntaxNode{
-        if(this.idToVar.has(blk.blockId))
-            return this.idToVar.get(blk.blockId)!;
-        if(blk instanceof LayerBlock){
-            this.importManager.add(blk.fileInfo);
-            let args = this.edgesToArgs(blk.gratherArgs(this.layerNodeFuncName));
-            let constr = this.getLayerFuncCalled(blk);
-            return this.addVarDefine(blk, ast.Call(constr, args));
-        }
-        else if(blk instanceof FunctionBlock){
-            this.importManager.add(blk.fileInfo);
-            let fwdArgs = this.edgesToArgs(blk.gratherArgs("fwd"));
-            let func = this.pathToFunc(blk.fileInfo.relativePath, blk.blockFunc.name.split("$")[0]);
-            
-            if(Array.from(blk.fTar.values()).flatMap(x => x).length <= 1){ // function is called only once
-                return ast.Call(func, fwdArgs);
-            }
-            else {
-                return this.addVarDefine(blk, ast.Call(func, fwdArgs));
-            }
-        }
-        else if(blk instanceof OutputBlock){
-            let fwdArgs = this.edgesToArgs(blk.gratherArgs("fwd"));
-            return fwdArgs.length == 1 ? fwdArgs[0].actual : ast.Tuple(fwdArgs.map(x => x.actual));
-        }
-        else 
-            throw "Not reachable"
-    }
-    toValue(edge: EdgeEndpoint): ast.SyntaxNode{
-        let blk = this.graph.get(edge.nodeID)!;
-        let tmp: SyntaxNode;
-        if(blk instanceof LiteralBlock)
-            tmp = ast.Name(blk.getText());
-        else if(this.idToVar.has(edge.nodeID))
-            tmp = this.idToVar.get(edge.nodeID)!;
-        else {
-            tmp = this.addBlock(blk);
-        }
-        if(edge.slotIdx){
-            tmp = ast.Index(tmp, [ast.Name(edge.slotIdx)]);
-        }
-        return tmp;
-    }
-
-    getVar(id: string){
-        if(!this.idToVar.has(id))
-            return this.addBlock(this.graph.get(id)!);
-        return this.idToVar.get(id);
+}
+export class GeneratedModelClass extends GeneratedClass{
+    readonly inputCount: Number;
+	readonly groundCount: Number;
+	readonly outputCount: Number;
+    constructor(definition: SyntaxNode[], construction: SyntaxNode, inputCount: Number, groundCount: Number, outputCount: Number){
+        super(definition, construction);
+		this.inputCount = inputCount;
+		this.groundCount = groundCount;
+		this.outputCount = outputCount;
     }
 }
 
-class ClassEnv extends Environment{
-    readonly genVar: (blk: Block) => ast.Dot | ast.Name;
-    readonly layerNodeFuncName: string;
-    readonly getLayerFuncCalled: (blk: LayerBlock) => SyntaxNode;
-
-    constructor(varDefField: PythonFunc, graph: LayerGraph, imports: ImportManager){
-        super(varDefField, graph, imports);
-
-        this.genVar = blk => ast.Dot(Environment.self, toValidName(blk.blockId));
-        this.layerNodeFuncName = "ini";
-        this.getLayerFuncCalled = blk => this.pathToFunc(blk.fileInfo.relativePath, blk.blockClass.name);
-    }
-}
-
-class ForwardEnv extends Environment{
-    readonly genVar: (blk: Block) => ast.Dot | ast.Name;
-    readonly layerNodeFuncName: string;
-    readonly getLayerFuncCalled: (blk: LayerBlock) => SyntaxNode;
-
-    constructor(varDefField: PythonFunc, graph: LayerGraph, imports: ImportManager, outerEnv: ClassEnv){
-        super(varDefField, graph, imports);
-
-        this.genVar = _ => ast.Name(this.varNameGenerator.genFlowVar());
-        this.layerNodeFuncName = "fwd";
-        this.getLayerFuncCalled = blk => outerEnv.getVar(blk.blockId)!;
-    }
-
-    setAsParam(blk: Block, paramName?: ast.Name){
-        let param = paramName || ast.Name(this.varNameGenerator.genFlowVar());
-        this.idToVar.set(blk.blockId, param);
-        this.varDefField.params.push(param);
-    }
-
-    setAsReturn(blk: Block){
-        let retV = this.addBlock(blk);
-        this.varDefField.retVals.push(retV);
-    }
-}
-
-function transformDataflow(graph: LayerGraph, imports: ImportManager, startFrom: Block[], endingAt: Block[]) {
-    const forwardFunc = new PythonFunc();
-    const initFunc = new PythonFunc();
-    initFunc.body.push(ast.Call(ast.Dot(ast.Call(ast.Name("super"), []), "__init__"), []));
-    const classEnv = new ClassEnv(initFunc, graph, imports);
-    const forwardEnv = new ForwardEnv(forwardFunc, graph, imports, classEnv);
-
-    startFrom.forEach(blk => forwardEnv.setAsParam(blk));
-    endingAt.forEach(blk => forwardEnv.setAsReturn(blk));
-
-    return {init: initFunc.toFuncDef("__init__", true), forward: forwardFunc.toFuncDef("forward", true)};
-}
-
-export function genModelClass(graph: LayerGraph, imports: ImportManager){
-    let {init, forward} = transformDataflow(graph, imports, graph.inputBlocks, graph.outputBlocks);
-    const classDef = ast.Class(graph.name, [ast.Dot(ast.Dot(ast.Name("torch"), "nn"), "Module")], [
-        init, 
-        forward
-    ]);
-    return classDef;
+export class GeneratedDataset extends GeneratedClass{
+    // readonly itemIsTuple: boolean;
+    // constructor(definition: SyntaxNode[], construction: SyntaxNode, itemIsTuple: boolean){
+    //     super(definition, construction);
+    //     this.itemIsTuple = itemIsTuple;
+    // }
 }
 
 export function genTrainingClass(modelName: string, lossName: string){
@@ -259,4 +112,51 @@ export function genAll(graphs: LayerGraph[]): SyntaxNode{
     let imports = new ImportManager();
     let graphClasses = graphs.map(g => genModelClass(g, imports));
     return ast.Module([...imports.toCode(), ...graphClasses]);
+}
+
+export function generateAll(dataSet: GeneratedDataset, model: GeneratedModelClass, loss: GeneratedModelClass, imports: ImportManager): ast.Module{
+    // zip: [A, A, A], [B, B, B] => [A, B], [A, B], [A, B]
+    function zip<T, U>(array1: T[], array2: U[]): [T, U][]{
+        return array1.map((e, i) => [e, array2[i]] as [T, U]);
+    }
+
+    const selfModel = "self.model";
+    const selfLoss = "self.lossFunction";
+    const selfDataset = "self.dataset";
+
+    let initFunc = new PythonFunc();
+    zip([selfDataset, selfModel, selfLoss], [dataSet, model, loss]).forEach(([v, g]) => 
+        initFunc.body.push( ast.Assignment("=", [ast.CodeLine(v)], [g.construction]) )
+    );
+
+    const trainFunc = new PythonFunc();
+    const optimizer = "optimizer";
+    const dataLoder = "dataloader";
+
+    trainFunc.body.push(ast.CodeLine(`${optimizer} = torch.nn.Adam()`));
+    trainFunc.body.push(ast.CodeLine(`${dataLoder} = torch.utils.data.DataLoader(${selfDataset})`));
+
+    const loopBody: SyntaxNode[] = [];
+    const batch_index = "batch_index";
+    const inputs = "inputs";
+    const targets = "targets";
+    trainFunc.body.push(
+        ast.For([ast.CodeLine(`${batch_index}, (${inputs}, ${targets})`)], [ast.CodeLine(`enumerate(${dataLoder})`)], loopBody)
+    );
+    loopBody.push(ast.CodeLine(`${optimizer}.zero_grad()`));
+    loopBody.push(ast.CodeLine(`outputs = ${selfModel}(${inputs})`));
+    loopBody.push(ast.CodeLine(`loss = ${selfLoss}(outputs, ${targets})`));
+    loopBody.push(ast.CodeLine(`loss.backward()`));
+    loopBody.push(ast.CodeLine(`${optimizer}.step()`));
+    loopBody.push(ast.If(ast.CodeLine(`${batch_index} % 100 == 0`), [
+        ast.CodeLine(`print(f\"Batch: {${batch_index}}, Training Loss: {loss}\")`)
+    ], []));
+    return ast.Module([
+        ...imports.toCode(),
+        ...[dataSet, model, loss].flatMap(x => x.definition),
+        ast.Class("Training", [], [
+            initFunc.toFuncDef("__init__", true),
+            trainFunc.toFuncDef("train", true)
+        ])
+    ]);
 }

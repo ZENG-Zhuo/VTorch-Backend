@@ -7,6 +7,7 @@ import * as pyType from "./pythonTypes";
 
 export const INPUTBLKID = "input";
 export const OUTPUTBLKID = "output";
+export const GROUNDTRUTHID = "groundtruth";
 
 export class EdgeEndpoint{
     readonly nodeType: string
@@ -131,14 +132,14 @@ export abstract class TypedParamBlock extends Block{
     fTarType: PythonType = new pyType.Any();
 
     static funcNameMapping(func: FuncInfo): string{
-        console.log("mapping funcname", func.name);
+        // console.log("mapping funcname", func.name);
         return func.name.slice(0, "__init__".length) == "__init__" ? "ini" : "fwd";
     }
 
     addFunctionParams(func: FuncInfo, isForward: boolean) {
         let funcName = TypedParamBlock.funcNameMapping(func);
         func.parameters.forEach(param => {
-            console.log("setting", funcName + '-' + param.name, "at", this.blockId);
+            // console.log("setting", funcName + '-' + param.name, "at", this.blockId);
             this.fSrcType.set(funcName + '-' + param.name, [toPythonType(param.type_hint)]);
             this.fSrcIsTuple.set(funcName + '-' + param.name, false);
             this.fSrc.set(funcName + '-' + param.name, []);
@@ -160,7 +161,7 @@ export abstract class TypedParamBlock extends Block{
             let matchW = typeof(value) == "string" ? pyType.convertTo(value, types[0]) : {succ: pyType.isSubType(value, types[0])}
             console.log(matchD, restD, matchW);
             if((!matchW.succ) && (!restD)){
-                console.log("failed");
+                // console.log("failed");
                 return failed;
             }
             types.push(restD ? restD : new pyType.None());
@@ -258,7 +259,7 @@ export abstract class TypedParamBlock extends Block{
                 this.checkParamReady(asKey(prm.name)) :
                 ((!!prm.initial_value) || prm.name == "self" || prm.power || prm.star) 
         );
-        console.log(paramFilldStatus, func.parameters);
+        console.log("function", func.name, "param status", paramFilldStatus);
         return paramFilldStatus.reduce((x, y) => x && y, true);
     }
 
@@ -338,6 +339,16 @@ export class InputBlock extends TypedParamBlock{
     }
 }
 
+export class GroundTruthBlock extends TypedParamBlock{
+    constructor(blkId?: string){
+        super(GROUNDTRUTHID, blkId ? blkId : GROUNDTRUTHID);
+        this.fTarType = new pyType.Any();
+    }
+    readyForGen(): boolean {
+        return true;
+    }
+}
+
 export class OutputBlock extends TypedParamBlock{
     static readonly inputSlot = new EdgeEndpoint(OUTPUTBLKID, OUTPUTBLKID, "fwd", "input", "");
     constructor(blkId?: string){
@@ -354,6 +365,7 @@ export class OutputBlock extends TypedParamBlock{
 export class LayerGraph{
     inputBlocks: InputBlock[] = [];
     outputBlocks: OutputBlock[] = [];
+    groundTruthBlocks: GroundTruthBlock[] = [];
     graph: Map<string, Block> = new Map();
     torchPackage?: Package;
     name: string;
@@ -374,7 +386,7 @@ export class LayerGraph{
         if(info instanceof ClassInfo)
             this.graph.set(id, new LayerBlock(id, info, fileInfo));
         else this.graph.set(id, new FunctionBlock(id, info, fileInfo));
-        console.log(this.graph.get(id));
+        // console.log(this.graph.get(id));
     }
 
     connectEdge(sourceEdgeEnd: string, targetEdgeEnd: string): {succ: boolean, msg: string}{
@@ -436,6 +448,16 @@ export class LayerGraph{
             this.clearSource(target, key);
         }
         this.graph.delete(id);
+        if(target instanceof InputBlock){
+            let idx = this.inputBlocks.findIndex(x => x.blockId == id);
+            this.inputBlocks.splice(idx, 0);
+        } else if(target instanceof OutputBlock){
+            let idx = this.outputBlocks.findIndex(x => x.blockId == id);
+            this.outputBlocks.splice(idx, 0);
+        } else if(target instanceof GroundTruthBlock){
+            let idx = this.groundTruthBlocks.findIndex(x => x.blockId == id);
+            this.groundTruthBlocks.splice(idx, 0);
+        }
         return {succ: true, msg: ""};
     }
 
@@ -470,6 +492,10 @@ export class LayerGraph{
         else if(name == OUTPUTBLKID){
             let newBlock = new OutputBlock(id);
             this.outputBlocks.push(newBlock);
+            this.graph.set(id, newBlock);
+        } else if(name == GROUNDTRUTHID){
+            let newBlock = new GroundTruthBlock(id);
+            this.groundTruthBlocks.push(newBlock);
             this.graph.set(id, newBlock);
         }
         else {
@@ -512,6 +538,11 @@ export class LayerGraph{
             else if(blockInfo.name == OUTPUTBLKID){
                 let newOutput = new OutputBlock(id);
                 this.outputBlocks.push(newOutput);
+                this.graph.set(id, newOutput);
+            }
+            else if(blockInfo.name == GROUNDTRUTHID){
+                let newOutput = new GroundTruthBlock(id);
+                this.groundTruthBlocks.push(newOutput);
                 this.graph.set(id, newOutput);
             }
         }
@@ -579,7 +610,7 @@ export class LayerGraph{
         let srcEdgNum = new Map(Array.from(this.graph.entries()).map(
             ([blkid, blkBody]) => [blkid, Array.from(blkBody.fSrc.entries()).filter(([_, y]) => y.length > 0).length])
         );
-        console.log(srcEdgNum);
+        // console.log(srcEdgNum);
         let zeroSrcId = Array.from(srcEdgNum.entries()).filter(([_, y]) => y == 0).map(([x, _]) => x);
         let ret: string[] = [];
         // console.log(srcEdgNum);
@@ -587,7 +618,7 @@ export class LayerGraph{
             let id = zeroSrcId.pop()!;
             let blk = this.graph.get(id)!;
             ret.push(id);
-            console.log(id);
+            // console.log(id);
             Array.from(blk.fTar.entries()).forEach(([_, edges]) => 
                 edges.forEach(e => {
                     srcEdgNum.set(e.nodeID, (srcEdgNum.get(e.nodeID)!)-1);
@@ -595,10 +626,9 @@ export class LayerGraph{
                         zeroSrcId.push(e.nodeID);
                 }
             ));
-            console.log(srcEdgNum);
+            // console.log(srcEdgNum);
         }
-        console.log(Array.from(this.graph.keys()));
-        console.log(ret);
+        // console.log(Array.from(this.graph.keys()));
         // console.log("topo sorted", ret);
         if(ret.length != this.graph.size)
             return {succ: false, msg: "Detects rings in the graph"};

@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { readFileSync, writeFileSync } from "fs";
-import { genAll, genModelClass } from "../codeGen/pyCodeGen";
 import { allGraphs } from "../codeGen/multiGraphManager";
 
 export const codeGenRouter = Router();
