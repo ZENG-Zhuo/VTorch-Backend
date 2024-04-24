@@ -1,6 +1,5 @@
-import { DatasetInfo, DatasetType, SegmentationDatasetInfo, TabularDatasetInfo, TorchvisionDatasetInfo, TransformInstance } from "../common/datasetTypes";
-import { Database } from "../common/objectStorage";
-import { GeneratedClass, GeneratedDataset, ImportManager, getParamNames } from "./pyCodeGen";
+import { CustomCodeDatasetInfo, DatasetInfo, DatasetType, SegmentationDatasetInfo, TabularDatasetInfo, TorchvisionDatasetInfo, TransformInstance } from "../common/datasetTypes";
+import { GeneratedDataset, ImportManager, getParamNames } from "./pyCodeGen";
 import { SyntaxNode } from "./python_ast";
 import * as ast from "./python_ast";
 
@@ -103,9 +102,6 @@ class TabularDatasetTransformer extends DatasetTransformer<TabularDatasetInfo>{
 }
 
 class SegmentationDatasetTransformer extends DatasetTransformer<SegmentationDatasetInfo>{
-    makeAssignMember(memberName: string, value: SyntaxNode): ast.Assignment{
-        return ast.Assignment("=", [ast.Dot(ast.Name("self"), memberName)], [value]);
-    }
     define(dataset: SegmentationDatasetInfo, imports: ImportManager): GeneratedDataset {
         imports.addAsStr("torch");
         imports.addAsStr("torch.utils.data");
@@ -148,15 +144,22 @@ class SegmentationDatasetTransformer extends DatasetTransformer<SegmentationData
     }
 }
 
+class CustomCodeDatasetTransformer extends DatasetTransformer<CustomCodeDatasetInfo>{
+    define(dataset: CustomCodeDatasetInfo, imports: ImportManager): GeneratedDataset {
+        return new GeneratedDataset([ast.CodeLine(dataset.config.code)], ast.CodeLine(dataset.config.datasetDefinition));
+    }
+}
+
 export function defineDataset(dataset: DatasetInfo, imports: ImportManager): GeneratedDataset{
     switch (dataset.type as DatasetType) {
         case "TorchvisionDatasetInfo":
-            return (new TorchVisionDatasetTransformer).define(dataset as TorchvisionDatasetInfo, imports);;
+            return (new TorchVisionDatasetTransformer).define(dataset as TorchvisionDatasetInfo, imports);
         case "TabularDatasetInfo":
             return (new TabularDatasetTransformer).define(dataset as TabularDatasetInfo, imports);
         case "SegmentationDatasetInfo":
             return (new SegmentationDatasetTransformer).define(dataset as SegmentationDatasetInfo, imports);
         case "CustomCodeDatasetInfo":
+            return (new CustomCodeDatasetTransformer).define(dataset as CustomCodeDatasetInfo, imports);
         default:
             throw new Error("Invalid dataset type");
     }

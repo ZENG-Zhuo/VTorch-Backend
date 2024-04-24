@@ -153,6 +153,7 @@ export function generateAll(dataSetInfo: DatasetInfo, modelGraph: LayerGraph, lo
         ast.Class("Training", [], [
             initFunc.toFuncDef("__init__", true),
             trainFunc.toFuncDef("train", true)
-        ])
+        ]),
+        ast.If(ast.CodeLine("__name__ == '__main__'"), [ast.CodeLine("Training().train()")], [])
     ]);
 }

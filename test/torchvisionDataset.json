@@ -3,7 +3,7 @@
     "type": "TorchvisionDatasetInfo",
     "torchvisionDatasetName": "MNIST",
     "initFuncParams": [
-        "\"../data\"",
+        "\"./data\"",
         "True",
         [
             { "name": "ToTensor", "parameters": [] },

@@ -46,4 +46,22 @@ function test3(){
     doTest(DatasetInfo.fromJSON(json));
 }
 
-test2();
+function test4(){
+    let json = {
+        "name": "12",
+        "type": "CustomCodeDatasetInfo",
+        "config": {
+            "code": `
+from torchvision.datasets import MNIST
+from torchvision.transforms import Compose, ToTensor, Normalize
+class ABC:
+    def __init__(self):
+        pass
+`, 
+            "datasetDefinition": "MNIST(root=\"../data\",train=True,transform=Compose([ToTensor(), Normalize((0.1307,),(0.3081,))]),download=True)"
+        }
+    }
+    doTest(DatasetInfo.fromJSON(json));
+}
+
+test4();

@@ -1,10 +1,4 @@
 
-import torchvision
-
-import torchvision.transforms
-
-import torchvision.datasets
-
 import torch.nn
 
 import torch.nn.functional
@@ -12,6 +6,14 @@ import torch.nn.functional
 import torch.optim
 
 import torch.utils.data
+
+
+from torchvision.datasets import MNIST
+from torchvision.transforms import Compose, ToTensor, Normalize
+class ABC:
+    def __init__(self):
+        pass
+
 
 class MyModel(torch.nn.Module):
     def __init__(self):
@@ -35,7 +37,7 @@ class MyLoss(torch.nn.Module):
 
 class Training():
     def __init__(self):
-        self.dataset = torchvision.datasets.MNIST(root="../data",train=True,transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((0.1307,),(0.3081,))]),download=True)
+        self.dataset = MNIST(root="../data",train=True,transform=Compose([ToTensor(), Normalize((0.1307,),(0.3081,))]),download=True)
         self.model = MyModel()
         self.lossFunction = MyLoss()
     def train(self):
@@ -49,3 +51,6 @@ class Training():
             optimizer.step()
             if batch_index % 100 == 0:
                 print("Batch: {}, Training Loss: {}".format(batch_index, loss))
+
+if __name__ == '__main__':
+    Training().train()

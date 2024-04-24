@@ -71,19 +71,35 @@ function genLossGraph(){
 }
 
 function test1(){
-    // let datasetJson = {
-    //     "name": "12",
-    //     "type": "SegmentationDatasetInfo",
-    //     "config": {
-    //         imgDir: "hello",
-    //         maskDir: "world",
-    //         transforms: [
-    //             { "name": "Resize", "parameters": ["(256, 256)"] },
-    //             { "name": "ToTensor", "parameters": [] }
-    //         ]
-    //     }
-    // }
-	let datasetJson = JSON.parse(readFileSync("torchvisionDataset.json", 'utf-8'));
+    let datasetJson = {
+        "name": "12",
+        "type": "CustomCodeDatasetInfo",
+        "config": {
+            "code": `
+from torchvision.datasets import MNIST
+from torchvision.transforms import Compose, ToTensor, Normalize
+class ABC:
+    def __init__(self):
+        pass
+`, 
+            "datasetDefinition": "MNIST(root=\"../data\",train=True,transform=Compose([ToTensor(), Normalize((0.1307,),(0.3081,))]),download=True)"
+        }
+    }
+	// let datasetJson = {
+    //     "name": "11",
+    //     "type": "TorchvisionDatasetInfo",
+    //     "torchvisionDatasetName": "MNIST",
+    //     "initFuncParams": [
+    //         "\"./data\"",
+    //         "True",
+    //         [
+    //             { "name": "ToTensor", "parameters": [] },
+    //             { "name": "Normalize", "parameters": ["(0.1307,)", "(0.3081,)"] }
+    //         ],
+    //         [],
+    //         "True"
+    //     ]
+    // };
 	let optim: OptimizerConfig = {
 		name: "Adam",
 		parameters: ["1e-4"]
