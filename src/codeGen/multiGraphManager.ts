@@ -1,6 +1,6 @@
 import { EdgeEndpoint, FunctionBlock, LayerBlock, LayerGraph, LiteralBlock } from "./graphBlock";
 import { printNode } from "./printNode";
-import { genAll, genModelClass } from "./pyCodeGen";
+import { genAll } from "./pyCodeGen";
 
 interface Operation{
     op: string,

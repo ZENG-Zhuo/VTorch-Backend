@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "fs";
 import { Database } from "../src/common/objectStorage";
 import { EdgeEndpoint, LayerBlock, LayerGraph } from "../src/codeGen/graphBlock";
 import { ClassInfo } from "../src/common/pythonObjectTypes";
-import { genAll, genModelClass, genTrainingClass } from "../src/codeGen/pyCodeGen";
+import { genAll, genTrainingClass } from "../src/codeGen/pyCodeGen";
 import { printNode } from "../src/codeGen/printNode";
 
 Database.fromJSON(JSON.parse(readFileSync("response.json", 'utf-8')));
@@ -28,7 +28,7 @@ function addBlock(graph: LayerGraph, id: string, name: string, path: string[]){
 }
 
 function doAssert(value: {succ: boolean, msg: string}, inverse: boolean = false){
-    if(value.succ !== inverse)
+    if(value.succ || !inverse)
         return ;
     throw new Error("assertion failed. Msg: " + value.msg);
 }
@@ -101,6 +101,28 @@ function test4(){
     testingGraph.addBlockByName("node5", "vstack$1", ["torch"]);
     
 	doAssert(testingGraph.connectEdge("input-node1-fwd-return-", "Softmax-node2-fwd-input-"));
+	doAssert(testingGraph.connectEdge("Softmax-node2-fwd-return-", "sum$1-node4-fwd-input-"));
+	doAssert(testingGraph.connectEdge("sum$1-node4-fwd-return-", "vstack$1-node5-fwd-tensors-"));
+	doAssert(testingGraph.connectEdge("Softmax-node2-fwd-return-", "vstack$1-node5-fwd-tensors-"));
+    
+	doAssert(testingGraph.connectEdge("vstack$1-node5-fwd-return-", "output-node3-fwd-input-"));
+
+    doAssert(testingGraph.readyForGen());
+    
+    // doAssert(testingGraph.fillArg("Linear-node2-ini-in_features-", "123"));
+    // doAssert(testingGraph.fillArg("Linear-node2-ini-out_features-", "456"));
+	console.log(printNode(genAll([testingGraph])));
+}
+
+function test5(){
+    let testingGraph = new LayerGraph();
+    testingGraph.addBlockByName("node1", "groundtruth", []);
+    testingGraph.addBlockByName("node3", "output", []);
+    testingGraph.addBlockByName("node2", "Softmax", ["torch","nn"]);
+    testingGraph.addBlockByName("node4", "sum$1", ["torch"]);
+    testingGraph.addBlockByName("node5", "vstack$1", ["torch"]);
+    
+	doAssert(testingGraph.connectEdge("groundtruth-node1-fwd-return-", "Softmax-node2-fwd-input-"));
 	doAssert(testingGraph.connectEdge("Softmax-node2-fwd-return-", "sum$1-node4-fwd-input-"));
 	doAssert(testingGraph.connectEdge("sum$1-node4-fwd-return-", "vstack$1-node5-fwd-tensors-"));
 	doAssert(testingGraph.connectEdge("Softmax-node2-fwd-return-", "vstack$1-node5-fwd-tensors-"));
