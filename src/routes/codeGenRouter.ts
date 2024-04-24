@@ -86,6 +86,7 @@ codeGenRouter.post("/changeArgument", (req, res) => {
 });
 
 codeGenRouter.post("/replayGraph", (req, res) => {
+    console.log(req.body);
     let graphName: string = req.body.graphName;
     let replayed = allGraphs.replayGraph(graphName);
     res.send(JSON.stringify(replayed));
