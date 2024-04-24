@@ -82,5 +82,11 @@ UDBRouter.post("/addUDB", async (req, res) => {
 });
 
 UDBRouter.post("/getUDBs", async (req, res) => {
-    res.send(Array.from(UDBMap.entries()));
+    res.send(
+        Array.from(
+            Array.from(UDBMap.entries(), (v) => {
+                return [v[0], JSON.stringify(v[1].toJSON())];
+            })
+        )
+    );
 });
