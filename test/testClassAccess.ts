@@ -6,10 +6,10 @@ Database.fromJSON(JSON.parse(readFileSync("response.json", 'utf-8')));
 const packageId = Database.findPackage("torch", "1.0.0");
 if (packageId){
 	const torch = Database.getPackage(packageId);
-	const nnId = torch.getSubModule(["torch", "nn"], false);
+	const nnId = torch.getSubModule(["torch", "optim", "lr_scheduler"], false);
 	if (nnId){
 		const nn = Database.getNode(nnId);
-		const module = nn.getClass("Flatten");
+		const module = nn.getClass("StepLR");
 		console.log(module?.toString());
 		// const func = nn.functions;
 		// const funcs = Array.from(nn.importedFunctions.keys()).flatMap(x => nn.getFunction(x))

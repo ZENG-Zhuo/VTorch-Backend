@@ -1,8 +1,10 @@
+import { DatasetInfo } from "../common/datasetTypes";
 import { Database } from "../common/objectStorage";
 import { OptimizerConfig } from "../common/optimizerTypes";
 import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
 import { ParameterInfo } from "../common/pythonObjectTypes";
-import { genModelClass } from "./genModelDef";
+import { defineDataset } from "./genDataSetDef";
+import { genModel, genModelClass } from "./genModelDef";
 import { LayerGraph } from "./graphBlock";
 import { SyntaxNode } from "./python_ast";
 import * as ast from "./python_ast";
@@ -108,7 +110,11 @@ export function genAll(graphs: LayerGraph[]): SyntaxNode{
     return ast.Module([...imports.toCode(), ...graphClasses]);
 }
 
-export function generateAll(dataSet: GeneratedDataset, model: GeneratedModelClass, loss: GeneratedModelClass, optim: OptimizerConfig, loader: string[], imports: ImportManager): ast.Module{
+export function generateAll(dataSetInfo: DatasetInfo, modelGraph: LayerGraph, lossGraph: LayerGraph, optim: OptimizerConfig, loader: string[]): ast.Module{
+    const imports = new ImportManager();
+    const dataSet : GeneratedDataset = defineDataset(dataSetInfo, imports);
+    const model: GeneratedModelClass = genModel(modelGraph, imports);
+    const loss: GeneratedModelClass = genModel(lossGraph, imports);
 
     const selfModel = "self.model";
     const selfLoss = "self.lossFunction";

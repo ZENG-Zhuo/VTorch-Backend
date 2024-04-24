@@ -1,6 +1,8 @@
+import { CodeGenInfo } from "../common/codeGenTypes";
+import { datasets } from "../routes/datasetsRouter";
 import { EdgeEndpoint, FunctionBlock, LayerBlock, LayerGraph, LiteralBlock } from "./graphBlock";
 import { printNode } from "./printNode";
-import { genAll } from "./pyCodeGen";
+import { genAll, generateAll } from "./pyCodeGen";
 
 interface Operation{
     op: string,
@@ -127,6 +129,38 @@ class NamedGraphs{
         if(!ready.succ)
             return ready;
         return {succ: true, code: printNode(genAll([graph]))};
+    }
+    genAllCode(codeGenInfo: CodeGenInfo): {succ: boolean, msg: string} {
+        if(!this.graphs.has(codeGenInfo.modelName) || !allGraphs.graphs.get(codeGenInfo.modelName)?.readyForGen()){
+            return {succ: false, msg: "Model " + codeGenInfo.modelName + " not ready"};
+        }
+        if(!this.graphs.has(codeGenInfo.lossName) || !allGraphs.graphs.get(codeGenInfo.lossName)?.readyForGen()){
+            return {succ: false, msg: "Loss function " + codeGenInfo.modelName + " not ready"};
+        }
+        let modelGraph = this.graphs.get(codeGenInfo.modelName)!;
+        let lossGraph = this.graphs.get(codeGenInfo.lossName)!;
+        if(modelGraph.inputBlocks.length > 1)
+            return {succ: false, msg: "Model " + codeGenInfo.modelName + " has multiple inputs"};
+        if(modelGraph.outputBlocks.length != 1)
+            return {succ: false, msg: "Model " + codeGenInfo.modelName + " must have single output"};
+        if(modelGraph.groundTruthBlocks.length > 0)
+            return {succ: false, msg: "Model " + codeGenInfo.modelName + " must not have groundtruth input"};
+        if(lossGraph.inputBlocks.length > 1)
+            return {succ: false, msg: "Loss function " + codeGenInfo.lossName + " has multiple inputs"};
+        if(lossGraph.groundTruthBlocks.length > 1)
+            return {succ: false, msg: "Loss function " + codeGenInfo.lossName + " has multiple groundtruth inputs"};
+        if(lossGraph.outputBlocks.length != 1)
+            return {succ: false, msg: "Loss function " + codeGenInfo.lossName + " must have single output"};
+        if(!datasets.has(codeGenInfo.datasetName))
+            return {succ: false, msg: "Dataset " + codeGenInfo.lossName + " not found"};
+        let codes = generateAll(
+            datasets.get(codeGenInfo.datasetName)!, modelGraph, lossGraph, codeGenInfo.optimizerConfig, codeGenInfo.dataloaderParams
+        );
+        return {succ: true, msg: printNode(codes)};
+    }
+
+    getReadyGraphs(): string[]{
+        return Array.from(this.graphs.entries()).filter(([name, graph]) => graph.readyForGen()).map(([name, graph]) => name);
     }
 }
 

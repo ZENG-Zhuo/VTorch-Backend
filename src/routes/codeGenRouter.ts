@@ -84,21 +84,6 @@ codeGenRouter.post("/changeArgument", (req, res) => {
     } else res.status(400).send(result.msg);
 });
 
-// body: {"graphName": "MyModel"}
-codeGenRouter.post("/genPythonCode", (req, res) => {
-    let graphName: string = req.body.graphName;
-    let pythonCode = allGraphs.genModelCode(graphName);
-    const result = {
-        succ: true, //will check graph completeness in the future
-        code: pythonCode,
-        msg: "",
-    };
-
-    if (result.succ) {
-        res.send(result.code);
-    } else res.status(400).send(result.msg);
-});
-
 codeGenRouter.post("/replayGraph", (req, res) => {
     let graphName: string = req.body.graphName;
     let replayed = allGraphs.replayGraph(graphName);
@@ -120,4 +105,13 @@ codeGenRouter.post("/generateCode", async (req, res) => {
     };
 
     console.log("Code generation info: ", codeGenInfo);
+
+    const ret = allGraphs.genAllCode(codeGenInfo);
+    if(ret.succ)
+        res.send(ret.msg);
+    else res.status(400).send(ret.msg);
+});
+
+codeGenRouter.post("/getReadyGraphs", async (req, res) => {
+    res.send(JSON.stringify(allGraphs.getReadyGraphs()));
 });

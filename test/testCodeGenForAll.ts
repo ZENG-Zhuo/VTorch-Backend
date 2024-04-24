@@ -11,12 +11,8 @@ import { OptimizerConfig } from "../src/common/optimizerTypes";
 Database.fromJSON(JSON.parse(readFileSync("response.json", 'utf-8')));
 
 function doTest(datasetJson: any, modelGraph: LayerGraph, lossGraph: LayerGraph, optim: OptimizerConfig, dataloaderConfig: string[]){
-    let imports = new ImportManager();
-    const dataset = defineDataset(DatasetInfo.fromJSON(datasetJson), imports);
-	const model = genModel(modelGraph, imports);
-	const loss = genModel(lossGraph, imports);
-
-	const ret = generateAll(dataset, model, loss, optim, dataloaderConfig, imports);
+    const dataset = DatasetInfo.fromJSON(datasetJson);
+	const ret = generateAll(dataset, modelGraph, lossGraph, optim, dataloaderConfig);
 	writeFileSync("generatedCode.py", printNode(ret));
 }
 

@@ -3,7 +3,7 @@ import { DatasetInfo } from "../common/datasetTypes";
 
 export const datasetsRouter = Router();
 
-const datasets: Map<string, DatasetInfo> = new Map();
+export const datasets: Map<string, DatasetInfo> = new Map();
 
 datasetsRouter.post("/setDatasetInfo", async (req, res) => {
     const name = req.body.name;
