@@ -19,8 +19,8 @@ class GraphWithPosition extends LayerGraph{
             let body = {
                 id, 
                 "name": blk.blockType, 
-                "submodule": blk instanceof LayerBlock ? blk.fileInfo.relativePath : 
-                                blk instanceof FunctionBlock ? blk.fileInfo.relativePath :
+                "submodule": blk instanceof LayerBlock ? blk.getPath() : 
+                                blk instanceof FunctionBlock ? blk.getPath() :
                                 [],
                 "position": this.position.get(id)
             };
@@ -51,13 +51,19 @@ class GraphWithPosition extends LayerGraph{
     }
 }
 
+
+function toValidName(varName: string): string {
+    const regex = /[^a-zA-Z0-9]+/g;
+    return varName.replace(regex, '_');
+}
+
 class NamedGraphs{
     graphs: Map<string, GraphWithPosition> = new Map();
     constructor(){}
 
     createGraph(name: string){
         if(!this.graphs.has(name)){
-            this.graphs.set(name, new GraphWithPosition());
+            this.graphs.set(name, new GraphWithPosition("Module_" + toValidName(name)));
             console.log("add graph", name);
         }
     }

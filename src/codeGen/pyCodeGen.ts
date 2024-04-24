@@ -1,8 +1,9 @@
 import { DatasetInfo } from "../common/datasetTypes";
 import { Database } from "../common/objectStorage";
 import { OptimizerConfig } from "../common/optimizerTypes";
-import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
+import { FileModuleNode, FolderModuleNode, Node } from "../common/pythonFileTypes";
 import { ParameterInfo } from "../common/pythonObjectTypes";
+import { UDBMap } from "../routes/UDBRouter";
 import { defineDataset } from "./genDataSetDef";
 import { genModel, genModelClass } from "./genModelDef";
 import { LayerGraph } from "./graphBlock";
@@ -22,14 +23,21 @@ export class PythonFunc{
 }
 export class ImportManager{
     importList: Set<string> = new Set();
-    add(modul: FileModuleNode | FolderModuleNode){
-        this.importList.add(modul.relativePath.join("."));
+    importUDBList: Set<string> = new Set();
+    add(modul: Node | string){
+        if(modul instanceof Node){
+            this.addAsStr(modul.relativePath.join("."));
+        }
+        else 
+            this.importUDBList.add(modul);
     }
     addAsStr(path: string){
         this.importList.add(path);
     }
-    toCode(): ast.Import[]{
-        return Array.from(this.importList).map(str => ast.Import([{path: str, location: ""}]));
+    toCode(): ast.SyntaxNode[]{
+        const imports = Array.from(this.importList).map(str => ast.Import([{path: str, location: ""}]));
+        const udbs = Array.from(this.importUDBList).map(name => ast.CodeLine(UDBMap.get(name)!.data.code));
+        return [...imports, ...udbs];
     }
 }
 export abstract class GeneratedClass{

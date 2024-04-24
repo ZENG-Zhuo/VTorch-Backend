@@ -1,7 +1,9 @@
+import { UDBInfo } from "../common/UDBTypes";
 import { Database } from "../common/objectStorage";
-import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
+import { FileModuleNode, FolderModuleNode, Node } from "../common/pythonFileTypes";
 import { ClassInfo, FuncInfo } from "../common/pythonObjectTypes";
 import { Package } from "../common/pythonPackageType";
+import { UDBMap } from "../routes/UDBRouter";
 import { PythonType, toPythonType } from "./pythonTypes";
 import * as pyType from "./pythonTypes"; 
 
@@ -286,10 +288,10 @@ export class LiteralBlock extends Block{
 }
 
 export class LayerBlock extends TypedParamBlock{
-    fileInfo: FileModuleNode | FolderModuleNode;
+    fileInfo: Node | string;
     blockClass: ClassInfo; 
 
-    constructor(id: string, info: ClassInfo, _fileInfo: FileModuleNode | FolderModuleNode){
+    constructor(id: string, info: ClassInfo, _fileInfo: Node | string){
         super(info.name, id);
         this.blockClass = info;
         this.fileInfo = _fileInfo;
@@ -314,13 +316,19 @@ export class LayerBlock extends TypedParamBlock{
         console.log("ready for gen conclusion:", ret1, ret2, " => ", ret1 && ret2);
         return ret1 && ret2;
     }
+    getPath(): string[] {
+        if(this.fileInfo instanceof Node)
+            return this.fileInfo.relativePath;
+        else 
+            return ["UDB", this.fileInfo];
+    }
 }
 
 export class FunctionBlock extends TypedParamBlock{
-    fileInfo: FileModuleNode | FolderModuleNode
+    fileInfo: Node | string;
     blockFunc: FuncInfo;
     
-    constructor(id: string, info: FuncInfo, _fileInfo: FileModuleNode | FolderModuleNode){
+    constructor(id: string, info: FuncInfo, _fileInfo: Node | string){
         super(info.name, id);
         this.blockFunc = info;
         this.fileInfo = _fileInfo;
@@ -328,6 +336,12 @@ export class FunctionBlock extends TypedParamBlock{
     }
     readyForGen(): boolean {
         return this.checkFunctionReady(this.blockFunc);
+    }
+    getPath(): string[] {
+        if(this.fileInfo instanceof Node)
+            return this.fileInfo.relativePath;
+        else 
+            return ["UDB", this.fileInfo];
     }
 }
 
@@ -339,6 +353,7 @@ export class InputBlock extends TypedParamBlock{
     readyForGen(): boolean {
         return true;
     }
+    
 }
 
 export class GroundTruthBlock extends TypedParamBlock{
@@ -384,7 +399,7 @@ export class LayerGraph{
         this.torchPackage = Database.getPackage(packageId);
     }
 
-    addBlock(id: string, info: ClassInfo | FuncInfo, fileInfo: FileModuleNode | FolderModuleNode){
+    addBlock(id: string, info: ClassInfo | FuncInfo, fileInfo: Node | string){
         if(info instanceof ClassInfo)
             this.graph.set(id, new LayerBlock(id, info, fileInfo));
         else this.graph.set(id, new FunctionBlock(id, info, fileInfo));
@@ -502,6 +517,20 @@ export class LayerGraph{
         }
         else {
             // console.log(id, name, submodule);
+            if(submodule[0] == "UDB"){
+                const udbName = submodule[1];
+                if(!udbName || !UDBMap.has(udbName))
+                    return {succ: false, msg: "Cannot find UDB " + udbName};
+                const udbInfo = UDBMap.get(udbName)!;
+                let info: FuncInfo | ClassInfo | undefined = udbInfo.classes.find(c => c.name == name);
+                if(!info){
+                    info = udbInfo.functions.find(f => f.name.startsWith(name + "$"));
+                }
+                if(!info){
+                    return {succ: false, msg: "UDB group " + udbName + " doesn't have name " + name};
+                }
+                this.addBlock(id, info, udbName);
+            }
             const submoduleID = this.torchPackage!.getSubModule(submodule, false);
             if(typeof(submoduleID) == "undefined")
                 return {succ: false, msg: "Cannot find submodule"};
@@ -594,8 +623,8 @@ export class LayerGraph{
                         )
                 );
                 let body = block.encodeNoneLitEdge();
-                body.submodule = (block instanceof LayerBlock ? block.fileInfo.relativePath : 
-                                    block instanceof FunctionBlock ? block.fileInfo.relativePath :
+                body.submodule = (block instanceof LayerBlock ? block.getPath() : 
+                                    block instanceof FunctionBlock ? block.getPath() :
                                     undefined
                 );
                 body.literalParams = literalParams;

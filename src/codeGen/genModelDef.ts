@@ -1,4 +1,4 @@
-import { FileModuleNode, FolderModuleNode } from "../common/pythonFileTypes";
+import { FileModuleNode, FolderModuleNode, Node } from "../common/pythonFileTypes";
 import { LayerGraph, Block, INPUTBLKID, OUTPUTBLKID, LayerBlock, LiteralBlock, EdgeEndpoint, OutputBlock, FunctionBlock} from "./graphBlock";
 import { GeneratedClass, GeneratedModelClass, ImportManager, PythonFunc } from "./pyCodeGen";
 import { SyntaxNode } from "./python_ast";
@@ -78,7 +78,9 @@ abstract class Environment{
         else if(blk instanceof FunctionBlock){
             this.importManager.add(blk.fileInfo);
             let fwdArgs = this.edgesToArgs(blk.gratherArgs("fwd"));
-            let func = this.pathToFunc(blk.fileInfo.relativePath, blk.blockFunc.name.split("$")[0]);
+            let func = blk.fileInfo instanceof Node ? 
+                this.pathToFunc(blk.fileInfo.relativePath, blk.blockFunc.name.split("$")[0]) : 
+                ast.Name(blk.blockFunc.name.split("$")[0]);
             
             if(Array.from(blk.fTar.values()).flatMap(x => x).length <= 1){ // function is called only once
                 return ast.Call(func, fwdArgs);
@@ -127,7 +129,8 @@ class ClassEnv extends Environment{
 
         this.genVar = blk => ast.Dot(Environment.self, toValidName(blk.blockId));
         this.layerNodeFuncName = "ini";
-        this.getLayerFuncCalled = blk => this.pathToFunc(blk.fileInfo.relativePath, blk.blockClass.name);
+        this.getLayerFuncCalled = blk => 
+            (blk.fileInfo instanceof Node ? this.pathToFunc(blk.fileInfo.relativePath, blk.blockClass.name) : ast.Name(blk.blockClass.name));
     }
 }
 
