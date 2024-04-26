@@ -35,9 +35,13 @@ export class ImportManager{
         this.importList.add(path);
     }
     toCode(): ast.SyntaxNode[]{
+        const UDBStartComment = ast.CodeLine("# ######## User Defined Blocks Starts #########");
+        const UDBEndComment = ast.CodeLine("# ######## User Defined Blocks Ends #########");
         const imports = Array.from(this.importList).map(str => ast.Import([{path: str, location: ""}]));
         const udbs = Array.from(this.importUDBList).map(name => ast.CodeLine(UDBMap.get(name)!.data.code));
-        return [...imports, ast.CodeLine("# ######## User Defined Blocks Starts #########"), ...udbs, ast.CodeLine("# ######## User Defined Blocks Ends #########")];
+        return [...imports, 
+            ...(udbs.length > 0 ? [UDBStartComment, ...udbs, UDBEndComment] : udbs)
+        ];
     }
 }
 export abstract class GeneratedClass{

@@ -230,9 +230,6 @@ function checkPredefinedADT(typeinfo: TypeInfo): PythonType {
     if (Enum.mapping.has(typeName)){
         return new Enum(typeName);
     }
-    if (typeName == "any"){
-        return new Any();
-    }
     if (typeName[0] == "_"){
         let tempTypeInfo = new TypeInfo(typeName.substring(1), typeinfo.getSubtypes());
         let ret = toPythonType(tempTypeInfo);
@@ -289,6 +286,9 @@ export function toPythonType(typeinfo?: TypeInfo): PythonType {
             return new Variadic(new Any());
         case TENSOR:
             return new Tensor(typeinfo.getSubtypes().length == 1 ? toPythonType(typeinfo.getSubtypes()[0]) : new Any());
+        case ANYTYPE:
+        case "any":
+            return new Any();
         default:
             return checkPredefinedADT(typeinfo);
     }

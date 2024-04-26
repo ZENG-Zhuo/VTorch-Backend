@@ -29,6 +29,7 @@ abstract class Environment{
     readonly abstract genVar: (blk: Block) => ast.Dot | ast.Name;
     readonly abstract layerNodeFuncName: string;
     readonly abstract getLayerFuncCalled: (blk: LayerBlock) => SyntaxNode;
+    readonly abstract requireStoreFunctions: boolean;
     static readonly self = ast.Name("self");
 
     constructor(varDefField: PythonFunc, graph: LayerGraph, imports: ImportManager){
@@ -82,7 +83,7 @@ abstract class Environment{
                 this.pathToFunc(blk.fileInfo.relativePath, blk.blockFunc.name.split("$")[0]) : 
                 ast.Name(blk.blockFunc.name.split("$")[0]);
             
-            if(Array.from(blk.fTar.values()).flatMap(x => x).length <= 1){ // function is called only once
+            if(!this.requireStoreFunctions && Array.from(blk.fTar.values()).flatMap(x => x).length <= 1){ // function is called only once
                 return ast.Call(func, fwdArgs);
             }
             else {
@@ -123,6 +124,7 @@ class ClassEnv extends Environment{
     readonly genVar: (blk: Block) => ast.Dot | ast.Name;
     readonly layerNodeFuncName: string;
     readonly getLayerFuncCalled: (blk: LayerBlock) => SyntaxNode;
+    readonly requireStoreFunctions: boolean = true;
 
     constructor(varDefField: PythonFunc, graph: LayerGraph, imports: ImportManager){
         super(varDefField, graph, imports);
@@ -138,6 +140,7 @@ class ForwardEnv extends Environment{
     readonly genVar: (blk: Block) => ast.Dot | ast.Name;
     readonly layerNodeFuncName: string;
     readonly getLayerFuncCalled: (blk: LayerBlock) => SyntaxNode;
+    readonly requireStoreFunctions: boolean = false;
 
     constructor(varDefField: PythonFunc, graph: LayerGraph, imports: ImportManager, outerEnv: ClassEnv){
         super(varDefField, graph, imports);
@@ -145,35 +148,44 @@ class ForwardEnv extends Environment{
         this.genVar = _ => ast.Name(this.varNameGenerator.genFlowVar());
         this.layerNodeFuncName = "fwd";
         this.getLayerFuncCalled = blk => outerEnv.getVar(blk.blockId)!;
+
+        let independentBlocks = graph.independentBlocks();
+        for(let id of independentBlocks){
+            let blk = graph.get(id);
+            if(blk instanceof FunctionBlock){
+                let x = outerEnv.addBlock(blk);
+                this.idToVar.set(id, x);
+            }
+        }
+
+        graph.inputBlocks.forEach(blk => this.setAsParam(blk));
+        graph.groundTruthBlocks.forEach(blk => this.setAsParam(blk));
+        graph.outputBlocks.forEach(blk => this.setAsReturn(blk));
     }
 
-    setAsParam(blk: Block, paramName?: ast.Name){
+    private setAsParam(blk: Block, paramName?: ast.Name){
         let param = paramName || ast.Name(this.varNameGenerator.genFlowVar());
         this.idToVar.set(blk.blockId, param);
         this.varDefField.params.push(param);
     }
 
-    setAsReturn(blk: Block){
+    private setAsReturn(blk: Block){
         let retV = this.addBlock(blk);
         this.varDefField.retVals.push(retV);
     }
 }
 
-function transformDataflow(graph: LayerGraph, imports: ImportManager, startFrom: Block[], endingAt: Block[]) {
+function transformDataflow(graph: LayerGraph, imports: ImportManager) {
     const forwardFunc = new PythonFunc();
     const initFunc = new PythonFunc();
     initFunc.body.push(ast.Call(ast.Dot(ast.Call(ast.Name("super"), []), "__init__"), []));
     const classEnv = new ClassEnv(initFunc, graph, imports);
     const forwardEnv = new ForwardEnv(forwardFunc, graph, imports, classEnv);
-
-    startFrom.forEach(blk => forwardEnv.setAsParam(blk));
-    endingAt.forEach(blk => forwardEnv.setAsReturn(blk));
-
     return {init: initFunc.toFuncDef("__init__", true), forward: forwardFunc.toFuncDef("forward", true)};
 }
 
 export function genModelClass(graph: LayerGraph, imports: ImportManager): ast.Class{
-    let {init, forward} = transformDataflow(graph, imports, graph.inputBlocks.concat(graph.groundTruthBlocks), graph.outputBlocks);
+    let {init, forward} = transformDataflow(graph, imports);
     const classDef = ast.Class(graph.name, [ast.Dot(ast.Dot(ast.Name("torch"), "nn"), "Module")], [
         init, 
         forward

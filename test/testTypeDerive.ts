@@ -48,4 +48,7 @@ doTest("_size_3_t", ["(10, 11, 12)"], "undefined");
 doTest("Tuple[Boolean]", ["True"], "true");
 doTest("Tuple[Boolean]", ["true"], "true");
 
+
+doTest("Any", [strToType("Any")], "undefined");
+
 console.log("all test passed");

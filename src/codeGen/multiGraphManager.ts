@@ -78,13 +78,14 @@ class NamedGraphs{
     }
 
     addBlock(graphName: string, id: string, name: string, submodule: string[], position?: any){
-        console.log("Current graphs: ", this.graphs);
         if(!this.graphs.has(graphName)){
             return {succ: false, msg: "cannot find graph " + graphName};
         }
         let ret = this.graphs.get(graphName)!.addBlockByName(id, name, submodule);
-        if(ret.succ)
+        if(ret.succ){
             this.graphs.get(graphName)!.position.set(id, position);
+            console.log("After adding, graphs ", graphName, this.graphs.get(graphName));
+        }
         return ret;
     }
     deleteBlock(graphName: string, id: string){

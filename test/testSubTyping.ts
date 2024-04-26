@@ -32,4 +32,7 @@ doTest("List[Tensor]", "Union[Tuple[Tensor, ...], None]", false);
 doTest("Tuple[Tensor, ...]", "Union[Tuple[Tensor, ...], List[Tensor]]", true);
 doTest("Tuple[Tensor, ...]", "Union[Tuple[Tensor], List[Tensor]]", false);
 
+doTest("Any", "Any", true);
+
+
 console.log("all tests passed");

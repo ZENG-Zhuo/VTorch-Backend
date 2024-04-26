@@ -131,6 +131,7 @@ export abstract class TypedParamBlock extends Block{
     fSrcType: Map<string, PythonType[]> = new Map();
     // only used to determine a single connected source is treated a pure value or a tuple with single value
     fSrcIsTuple: Map<string, boolean> = new Map();
+    fSrcHasDefault: Map<string, boolean> = new Map();
     fTarType: PythonType = new pyType.Any();
 
     static funcNameMapping(func: FuncInfo): string{
@@ -140,14 +141,18 @@ export abstract class TypedParamBlock extends Block{
 
     addFunctionParams(func: FuncInfo, isForward: boolean) {
         let funcName = TypedParamBlock.funcNameMapping(func);
+        // console.log("adding function", isForward, func.name, func.parameters.map(x => x.name), func.return_type);
         func.parameters.forEach(param => {
             // console.log("setting", funcName + '-' + param.name, "at", this.blockId);
-            this.fSrcType.set(funcName + '-' + param.name, [toPythonType(param.type_hint)]);
-            this.fSrcIsTuple.set(funcName + '-' + param.name, false);
-            this.fSrc.set(funcName + '-' + param.name, []);
+            const key = funcName + "-" + param.name;
+            this.fSrcType.set(key, [toPythonType(param.type_hint)]);
+            this.fSrcIsTuple.set(key, false);
+            this.fSrcHasDefault.set(key, ((!!param.initial_value) || param.name == "self" || param.power || param.star));
+            this.fSrc.set(key, []);
         });
         if(isForward){
             this.fTarType = toPythonType(func.return_type ? func.return_type : undefined);
+            console.log("adding forward return type", this.fTarType);
         }
         console.log("in add func param ", this.fSrcType);
     }
@@ -159,9 +164,10 @@ export abstract class TypedParamBlock extends Block{
 
         // first source: may or may not be the first element of the tuple
         if(types.length == 1){
+            console.log(`(${value} -> ${edgeEnd.toString()})`, "appending to", types[0]);
             let {match: matchD, rest: restD} = pyType.deriveType(types[types.length-1], value);
             let matchW = typeof(value) == "string" ? pyType.convertTo(value, types[0]) : {succ: pyType.isSubType(value, types[0])}
-            console.log(`(${value} -> ${edgeEnd.toString()})`, "append type result: ", matchD, restD, matchW);
+            console.log("append type result: ", matchD, restD, matchW);
             if((!matchW.succ) && (!restD)){
                 // console.log("failed");
                 return failed;
@@ -184,12 +190,15 @@ export abstract class TypedParamBlock extends Block{
         let value: string | PythonType;
         if(source instanceof LiteralBlock){
             value = source.getText();
+            console.log(source.blockId, "returns text ", value);
         }
         else if(source instanceof TypedParamBlock){
             value = source.fTarType;
             if(value.typename == pyType.TUPLETYPE && srcEdgeEnd && srcEdgeEnd.slotIdx != ""){
-                value = (value as pyType.Tuple).inners[parseInt(srcEdgeEnd.slotIdx) - 1];
+                let idx = parseInt(srcEdgeEnd.slotIdx);
+                value = idx >= 0 ? (value as pyType.Tuple).inners[parseInt(srcEdgeEnd.slotIdx)] : value;
             }
+            console.log(source.blockId, "returns type ", value);
         }
         else{
             return false;
@@ -259,7 +268,7 @@ export abstract class TypedParamBlock extends Block{
         let paramFilldStatus = func.parameters.map(prm => 
             this.fSrc.get(asKey(prm.name))!.length > 0 ?
                 this.checkParamReady(asKey(prm.name)) :
-                ((!!prm.initial_value) || prm.name == "self" || prm.power || prm.star) 
+                this.fSrcHasDefault.get(asKey(prm.name))!
         );
         console.log("function", func.name, "param status", paramFilldStatus, "conclusion", paramFilldStatus.reduce((x, y) => x && y, true));
         return paramFilldStatus.reduce((x, y) => x && y, true);
@@ -272,7 +281,7 @@ export class LiteralBlock extends Block{
     original: string;
     converted: any = undefined;
     constantType?: PythonType;
-    readonly defaultEdgeEnd;
+    readonly defaultEdgeEnd: EdgeEndpoint;
     constructor(_value: string){
         super(Block.literalNodeType);
         this.original = _value;
@@ -413,7 +422,7 @@ export class LayerGraph{
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof TypedParamBlock){
             // console.log(tarNode);
-            console.log("connect edge: checking", tarNode.blockId, "fits", tarNode.fSrcType);
+            console.log("connect edge: checking", srcNode.blockId, "fits", tarNode.fSrcType);
             if(!tarNode.fSrc.has(targetEnd.asKey())){
                 console.log("cannot find slot " + targetEnd.asIDKey());
                 return {succ: false, msg: "cannot find slot " + targetEnd.asIDKey()};
@@ -467,26 +476,35 @@ export class LayerGraph{
         this.graph.delete(id);
         if(target instanceof InputBlock){
             let idx = this.inputBlocks.findIndex(x => x.blockId == id);
-            this.inputBlocks.splice(idx, 0);
+            this.inputBlocks.splice(idx, 1);
+            console.log("removing", id, ", which is an input block. After removing, inputs: ", this.inputBlocks.map(x => x.blockId));
         } else if(target instanceof OutputBlock){
             let idx = this.outputBlocks.findIndex(x => x.blockId == id);
-            this.outputBlocks.splice(idx, 0);
+            this.outputBlocks.splice(idx, 1);
+            console.log("removing", id, ", which is an output block. After removing, outputs: ", this.outputBlocks.map(x => x.blockId));
         } else if(target instanceof GroundTruthBlock){
             let idx = this.groundTruthBlocks.findIndex(x => x.blockId == id);
-            this.groundTruthBlocks.splice(idx, 0);
+            this.groundTruthBlocks.splice(idx, 1);
+            console.log("removing", id, "idx = ", idx, ", which is a groundtruth block. After removing, grounds: ", this.groundTruthBlocks.map(x => x.blockId));
         }
         return {succ: true, msg: ""};
     }
 
     updateArg(edgeEnding: string, arg: string): {succ: boolean, msg: string}{
         const targetEnd = EdgeEndpoint.fromEdgeEndString(edgeEnding);
-        let newNode = new LiteralBlock(arg);
         let tarNode = this.graph.get(targetEnd.nodeID)!;
         if(tarNode instanceof TypedParamBlock){
-            this.clearSource(tarNode, targetEnd.asKey());
-            let ret = tarNode.connectIn(newNode, targetEnd);
             if(!tarNode.fSrc.has(targetEnd.asKey()))
                 return {succ: false, msg: "cannot find arg " + targetEnd.asIDKey()};
+            this.clearSource(tarNode, targetEnd.asKey());
+            if(arg == ""){
+                if(tarNode.fSrcHasDefault.get(targetEnd.asKey())!)
+                    return {succ: true, msg: ""};
+                else 
+                    return {succ: false, msg: "parameter " + targetEnd.paramName + " doesn't have default value"};
+            }
+            let newNode = new LiteralBlock(arg);
+            let ret = tarNode.connectIn(newNode, targetEnd);
             if(ret){
                 this.graph.set(newNode.blockId, newNode);
                 return {succ: true, msg: ""};
@@ -639,7 +657,7 @@ export class LayerGraph{
         return ret;
     }
 
-    readyForGen(): {succ: boolean, msg: string}{
+    topoSort(): string[]{
         let srcEdgNum = new Map(Array.from(this.graph.entries()).map(
             ([blkid, blkBody]) => [blkid, Array.from(blkBody.fSrc.entries()).filter(([_, y]) => y.length > 0).length])
         );
@@ -661,9 +679,14 @@ export class LayerGraph{
             ));
             // console.log(srcEdgNum);
         }
+        return ret;
+    }
+
+    readyForGen(): {succ: boolean, msg: string}{
+        
         // console.log(Array.from(this.graph.keys()));
         // console.log("topo sorted", ret);
-        if(ret.length != this.graph.size)
+        if(this.topoSort().length != this.graph.size)
             return {succ: false, msg: "Detects rings in the graph"};
 
 
@@ -677,5 +700,25 @@ export class LayerGraph{
                     console.log("ready for gen test: ", id, "passed");
             }
         return {succ: true, msg: ""};
+    }
+
+    independentBlocks(): string[] {
+        let dependingOnInput: Set<string> = new Set();
+        let orderedId = this.topoSort();
+        for(let id of orderedId){
+            let blk = this.graph.get(id)!;
+            if(blk instanceof InputBlock || blk instanceof OutputBlock || blk instanceof GroundTruthBlock)
+                dependingOnInput.add(id);
+            else if(blk instanceof LiteralBlock)
+                continue;
+            else if(blk instanceof LayerBlock)
+                dependingOnInput.add(id);
+            else if(blk instanceof FunctionBlock){
+                let tmp = blk.gratherArgs("fwd").flatMap(([argName, edges]) => edges instanceof Array ? edges : [edges]);
+                if(tmp.find(e => dependingOnInput.has(e.nodeID)))
+                    dependingOnInput.add(id);
+            }
+        }
+        return Array.from(this.graph.keys()).filter(id => !dependingOnInput.has(id));
     }
 }

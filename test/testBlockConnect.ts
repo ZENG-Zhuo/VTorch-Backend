@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "fs";
 import { Database } from "../src/common/objectStorage";
-import { EdgeEndpoint, LayerBlock, LayerGraph } from "../src/codeGen/graphBlock";
+import { EdgeEndpoint, LayerBlock, LayerGraph, LiteralBlock } from "../src/codeGen/graphBlock";
 import {allGraphs} from "../src/codeGen/multiGraphManager"
 import { ClassInfo } from "../src/common/pythonObjectTypes";
 
@@ -35,27 +35,32 @@ function doAssert(value: any){
 function test(){
     let testingGraph = new LayerGraph();
     testingGraph.addBlockByName("node1", "Conv2d", ["torch","nn"]);
-    doAssert(testingGraph.fillArg("Conv2d-node1-ini-in_channels-", "123").succ);
-    doAssert(!testingGraph.fillArg("Conv2d-node1-ini-in_channels-", "123").succ);
+    doAssert(testingGraph.updateArg("Conv2d-node1-ini-in_channels-", "123").succ);
+    doAssert(testingGraph.updateArg("Conv2d-node1-ini-in_channels-", "123").succ);
     doAssert(
         (testingGraph.get("node1")! as LayerBlock).gratherArgs("ini")
             .find(([paramName, _]) => paramName == "in_channels")?.[1] 
         instanceof EdgeEndpoint
     );
 
-    doAssert(testingGraph.fillArg("Conv2d-node1-ini-padding-", "123").succ);
+    doAssert(testingGraph.updateArg("Conv2d-node1-ini-padding-", "123").succ);
     doAssert(
         (testingGraph.get("node1")! as LayerBlock).gratherArgs("ini")
             .find(([paramName, _]) => paramName == "padding")?.[1] 
         instanceof EdgeEndpoint
     );
-    doAssert(testingGraph.fillArg("Conv2d-node1-ini-padding-", "123").succ);
+    doAssert(testingGraph.updateArg("Conv2d-node1-ini-padding-", "123").succ);
+    const newLiteral = new LiteralBlock("456");
+    testingGraph.graph.set(newLiteral.blockId, newLiteral);
+    doAssert(testingGraph.connectEdge(newLiteral.defaultEdgeEnd.toString(), "Conv2d-node1-ini-padding-").succ);
     doAssert(
         (testingGraph.get("node1")! as LayerBlock).gratherArgs("ini")
             .find(([paramName, _]) => paramName == "padding")?.[1] 
         instanceof Array
     );
-    doAssert(!testingGraph.fillArg("Conv2d-node1-ini-padding-", "123").succ);
+    const newLiteral2 = new LiteralBlock("456");
+    testingGraph.graph.set(newLiteral2.blockId, newLiteral2);
+    doAssert(!testingGraph.connectEdge(newLiteral2.defaultEdgeEnd.toString(), "Conv2d-node1-ini-padding-").succ);
 }
 
 function test2(){
@@ -73,6 +78,15 @@ function test3(){
     doAssert(allGraphs.addEdge(graphName, "input-node2-fwd-return", "Bilinear-node1-fwd-input1-0").succ);
 }
 
-test3();
+function test4(){
+    let graphName = "myGraph";
+    allGraphs.createGraph(graphName);
+    doAssert(allGraphs.addBlock(graphName, "node1", "RNN", ["torch", "nn"]).succ);
+    doAssert(allGraphs.addBlock(graphName, "node2", "output", []).succ);
+    doAssert(allGraphs.addEdge(graphName, "RNN-node1-fwd-return-0", "output-node2-fwd-input").succ);
+}
+
+test();
+// test4();
 
 console.log("all tests passed");

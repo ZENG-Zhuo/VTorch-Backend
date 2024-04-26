@@ -134,6 +134,6 @@ function test5(){
 	console.log(printNode(genAll([testingGraph])));
 }
 
-test4();
+test5();
 
 console.log("all tests passed");
